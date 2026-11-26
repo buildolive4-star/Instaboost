@@ -2,7 +2,7 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Authenticated user account, coin balance, points, level, streak, and preferences.",
+      "description": "Authenticated user account, coin balance, points, level, streak, suspension flag, and preferences.",
       "type": "object",
       "properties": {
         "userId": { "type": "string", "description": "Firebase Auth UID matching document ID." },
@@ -20,6 +20,7 @@
         "spinsToday": { "type": "integer", "description": "Number of spins completed today." },
         "mascotEnabled": { "type": "boolean", "description": "Whether floating mascot companion is visible." },
         "darkMode": { "type": "boolean", "description": "Whether dark mode preference is active." },
+        "blocked": { "type": "boolean", "description": "Admin-controlled account suspension flag." },
         "createdAt": { "type": "string", "format": "date-time", "description": "Immutable creation timestamp via FieldValue.serverTimestamp()." },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp via FieldValue.serverTimestamp()." }
       },
@@ -140,12 +141,69 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "coins", "bonusCoins", "points", "priceInr", "sortOrder", "active", "createdAt", "updatedAt"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Global real-time configuration controlled by the Admin Panel for the User Panel.",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": { "type": "boolean" },
+        "maintenanceMessage": { "type": "string" },
+        "announcementTitle": { "type": "string" },
+        "announcementBody": { "type": "string" },
+        "welcomeCoins": { "type": "integer" },
+        "referralBonusCoins": { "type": "integer" },
+        "spinEnabled": { "type": "boolean" },
+        "dailyRewardsEnabled": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["maintenanceMode", "maintenanceMessage", "announcementTitle", "announcementBody", "welcomeCoins", "referralBonusCoins", "spinEnabled", "dailyRewardsEnabled", "updatedAt"]
+    },
+    "AdminStaff": {
+      "title": "AdminStaff",
+      "description": "Hashed credential entry created by Main Admin (Name + Password hashed into document ID; no plaintext password stored).",
+      "type": "object",
+      "properties": {
+        "staffName": { "type": "string" },
+        "active": { "type": "boolean" },
+        "linkedUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["staffName", "active", "createdAt", "updatedAt"]
+    },
+    "AdminGrant": {
+      "title": "AdminGrant",
+      "description": "Active admin session binding between a verified Firebase Auth UID and an active AdminStaff credential.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "staffKey": { "type": "string" },
+        "displayName": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "staffKey", "displayName", "active", "createdAt"]
+    },
+    "AdminAuditLog": {
+      "title": "AdminAuditLog",
+      "description": "Immutable log of administrative changes.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string" },
+        "actorName": { "type": "string" },
+        "action": { "type": "string" },
+        "targetPath": { "type": "string" },
+        "summary": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "actorName", "action", "targetPath", "summary", "createdAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
-      "description": "User profile, wallet balance, points, level, streak, and app settings."
+      "description": "User profile, wallet balance, points, level, streak, suspension flag, and app settings."
     },
     "/users/{userId}/orders/{orderId}": {
       "schema": { "$ref": "#/entities/Order" },
@@ -174,6 +232,22 @@
     "/coinPackages/{packageId}": {
       "schema": { "$ref": "#/entities/CoinPackage" },
       "description": "Admin-configured coin wallet packages."
+    },
+    "/appConfig/{configId}": {
+      "schema": { "$ref": "#/entities/AppConfig" },
+      "description": "Global real-time app control switches and banners."
+    },
+    "/adminStaff/{staffKey}": {
+      "schema": { "$ref": "#/entities/AdminStaff" },
+      "description": "Main-admin-managed staff credentials keyed by 128-bit SHA-256 hash."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminGrant" },
+      "description": "Activated admin sessions bound to authenticated UIDs."
+    },
+    "/adminAuditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AdminAuditLog" },
+      "description": "Immutable admin action audit trail."
     }
   }
 }

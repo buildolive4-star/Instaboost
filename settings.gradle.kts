@@ -24,4 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CreatorBoost"
 
-include(":app")
+include(":app", ":admin")

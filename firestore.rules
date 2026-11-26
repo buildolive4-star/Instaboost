@@ -16,14 +16,24 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isMainAdmin() {
+      return isSignedIn() &&
+        'email' in request.auth.token &&
+        request.auth.token.email == 'buildolive4@gmail.com' &&
+        'email_verified' in request.auth.token &&
+        request.auth.token.email_verified == true;
+    }
+
+    function hasActiveAdminGrant() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true &&
+        exists(/databases/$(database)/documents/adminStaff/$(get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.staffKey)) &&
+        get(/databases/$(database)/documents/adminStaff/$(get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.staffKey)).data.active == true;
+    }
+
     function isAdmin() {
-      return isSignedIn() && (
-        ('email' in request.auth.token &&
-          request.auth.token.email == 'buildolive4@gmail.com' &&
-          'email_verified' in request.auth.token &&
-          request.auth.token.email_verified == true) ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-      );
+      return isMainAdmin() || hasActiveAdminGrant();
     }
 
     function isValidId(id) {
@@ -55,6 +65,7 @@ service cloud.firestore {
         data.spinsToday is int && data.spinsToday >= 0 && data.spinsToday <= 10 &&
         data.mascotEnabled is bool &&
         data.darkMode is bool &&
+        (!('blocked' in data) || data.blocked is bool) &&
         data.createdAt is timestamp && data.createdAt <= request.time &&
         data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -79,9 +90,9 @@ service cloud.firestore {
         data.txType in ['PURCHASE', 'SPEND', 'BONUS', 'DAILY_REWARD', 'SPIN_REWARD', 'REFERRAL'] &&
         data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
         (!('description' in data) || (data.description is string && data.description.size() <= 240)) &&
-        data.coinDelta is int && data.coinDelta >= -100000 && data.coinDelta <= 100000 &&
-        data.pointsDelta is int && data.pointsDelta >= 0 && data.pointsDelta <= 10000 &&
-        data.priceInr is int && data.priceInr >= 0 && data.priceInr <= 100000 &&
+        data.coinDelta is int && data.coinDelta >= -1000000 && data.coinDelta <= 1000000 &&
+        data.pointsDelta is int && data.pointsDelta >= -100000 && data.pointsDelta <= 100000 &&
+        data.priceInr is int && data.priceInr >= 0 && data.priceInr <= 500000 &&
         data.status in ['SUCCESSFUL', 'PENDING', 'FAILED', 'REFUNDED'] &&
         data.createdAt is timestamp && data.createdAt <= request.time;
     }
@@ -142,6 +153,43 @@ service cloud.firestore {
         data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
 
+    function isValidAppConfig(data) {
+      return data.maintenanceMode is bool &&
+        data.maintenanceMessage is string && data.maintenanceMessage.size() <= 300 &&
+        data.announcementTitle is string && data.announcementTitle.size() <= 100 &&
+        data.announcementBody is string && data.announcementBody.size() <= 300 &&
+        data.welcomeCoins is int && data.welcomeCoins >= 0 && data.welcomeCoins <= 100000 &&
+        data.referralBonusCoins is int && data.referralBonusCoins >= 0 && data.referralBonusCoins <= 100000 &&
+        data.spinEnabled is bool &&
+        data.dailyRewardsEnabled is bool &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidAdminStaff(data) {
+      return data.staffName is string && data.staffName.size() >= 2 && data.staffName.size() <= 80 &&
+        data.active is bool &&
+        (!('linkedUid' in data) || (data.linkedUid is string && data.linkedUid.size() <= 128)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidAdminGrant(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.staffKey is string && data.staffKey.size() >= 10 && data.staffKey.size() <= 80 &&
+        data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 80 &&
+        data.active is bool &&
+        data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidAuditLog(data) {
+      return data.actorUid is string && data.actorUid.size() >= 1 && data.actorUid.size() <= 128 &&
+        data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 80 &&
+        data.action is string && data.action.size() >= 2 && data.action.size() <= 60 &&
+        data.targetPath is string && data.targetPath.size() >= 1 && data.targetPath.size() <= 200 &&
+        data.summary is string && data.summary.size() >= 2 && data.summary.size() <= 300 &&
+        data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
     // --- USER PROFILE & PRIVATE SUBCOLLECTIONS ---
     match /users/{userId} {
       allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
@@ -151,6 +199,7 @@ service cloud.firestore {
         isValidId(userId) &&
         isOwner(userId) &&
         incoming().userId == request.auth.uid &&
+        !('blocked' in incoming()) &&
         incoming().keys().hasAll([
           'userId', 'displayName', 'coins', 'points', 'level', 'referralCode',
           'dailyStreak', 'spinsToday', 'mascotEnabled', 'darkMode', 'createdAt', 'updatedAt'
@@ -168,9 +217,16 @@ service cloud.firestore {
         incoming().userId == existing().userId &&
         incoming().createdAt == existing().createdAt &&
         (
-          isAdmin() ||
+          (
+            isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'country', 'coins', 'points', 'level', 'dailyStreak',
+              'spinsToday', 'mascotEnabled', 'darkMode', 'blocked', 'updatedAt'
+            ])
+          ) ||
           (
             isOwner(userId) &&
+            (!('blocked' in existing()) || existing().blocked == false) &&
             (
               // Action 1: Profile & preferences edit
               incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'country', 'mascotEnabled', 'darkMode', 'referredBy', 'updatedAt']) ||
@@ -209,7 +265,10 @@ service cloud.firestore {
           incoming().userId == existing().userId &&
           incoming().createdAt == existing().createdAt &&
           (
-            isAdmin() ||
+            (
+              isAdmin() &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['status', 'contentLines', 'updatedAt'])
+            ) ||
             (
               isOwner(userId) &&
               existing().status != 'CANCELLED' &&
@@ -312,7 +371,10 @@ service cloud.firestore {
           incoming().userId == existing().userId &&
           incoming().createdAt == existing().createdAt &&
           (
-            isAdmin() ||
+            (
+              isAdmin() &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['status', 'description', 'updatedAt'])
+            ) ||
             (
               isOwner(userId) &&
               existing().status != 'RESOLVED' &&
@@ -381,6 +443,107 @@ service cloud.firestore {
         ]);
 
       allow delete: if isSignedIn() && isValidId(packageId) && isAdmin();
+    }
+
+    // --- GLOBAL REAL-TIME APP CONFIG ---
+    match /appConfig/{configId} {
+      allow get: if isSignedIn() && isValidId(configId);
+      allow list: if isAdmin();
+
+      allow create: if isAdmin() &&
+        isValidId(configId) &&
+        incoming().keys().hasAll([
+          'maintenanceMode', 'maintenanceMessage', 'announcementTitle', 'announcementBody',
+          'welcomeCoins', 'referralBonusCoins', 'spinEnabled', 'dailyRewardsEnabled', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'maintenanceMode', 'maintenanceMessage', 'announcementTitle', 'announcementBody',
+          'welcomeCoins', 'referralBonusCoins', 'spinEnabled', 'dailyRewardsEnabled', 'updatedAt'
+        ]) &&
+        isValidAppConfig(incoming());
+
+      allow update: if isAdmin() &&
+        isValidId(configId) &&
+        isValidAppConfig(incoming()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'maintenanceMode', 'maintenanceMessage', 'announcementTitle', 'announcementBody',
+          'welcomeCoins', 'referralBonusCoins', 'spinEnabled', 'dailyRewardsEnabled', 'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // --- ADMIN STAFF CREDENTIALS (MAIN ADMIN ONLY FOR MANAGEMENT) ---
+    match /adminStaff/{staffKey} {
+      // Point lookup only by exact 128-bit cryptographic hash; listing restricted strictly to Main Admin
+      allow get: if isSignedIn() && isValidId(staffKey);
+      allow list: if isMainAdmin();
+
+      allow create: if isMainAdmin() &&
+        isValidId(staffKey) &&
+        incoming().keys().hasAll(['staffName', 'active', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['staffName', 'active', 'linkedUid', 'createdAt', 'updatedAt']) &&
+        isValidAdminStaff(incoming());
+
+      allow update: if isValidId(staffKey) &&
+        isValidAdminStaff(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          (
+            isMainAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['staffName', 'active', 'linkedUid', 'updatedAt'])
+          ) ||
+          (
+            isSignedIn() &&
+            existing().active == true &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['linkedUid', 'updatedAt']) &&
+            incoming().linkedUid == request.auth.uid
+          )
+        );
+
+      allow delete: if isMainAdmin() && isValidId(staffKey);
+    }
+
+    // --- ACTIVATED ADMIN SESSIONS ---
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && (request.auth.uid == adminUid || isMainAdmin());
+      allow list: if isMainAdmin();
+
+      allow create: if isSignedIn() &&
+        isValidId(adminUid) &&
+        request.auth.uid == adminUid &&
+        incoming().userId == request.auth.uid &&
+        incoming().active == true &&
+        incoming().keys().hasAll(['userId', 'staffKey', 'displayName', 'active', 'createdAt']) &&
+        incoming().keys().hasOnly(['userId', 'staffKey', 'displayName', 'active', 'createdAt']) &&
+        isValidAdminGrant(incoming()) &&
+        exists(/databases/$(database)/documents/adminStaff/$(incoming().staffKey)) &&
+        get(/databases/$(database)/documents/adminStaff/$(incoming().staffKey)).data.active == true;
+
+      allow update: if isMainAdmin() &&
+        isValidId(adminUid) &&
+        isValidAdminGrant(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['active', 'displayName']);
+
+      allow delete: if isSignedIn() && isValidId(adminUid) && (isMainAdmin() || request.auth.uid == adminUid);
+    }
+
+    // --- IMMUTABLE ADMIN AUDIT LOGS ---
+    match /adminAuditLogs/{logId} {
+      allow get: if isAdmin() && isValidId(logId);
+      allow list: if isAdmin();
+
+      allow create: if isAdmin() &&
+        isValidId(logId) &&
+        incoming().actorUid == request.auth.uid &&
+        incoming().keys().hasAll(['actorUid', 'actorName', 'action', 'targetPath', 'summary', 'createdAt']) &&
+        incoming().keys().hasOnly(['actorUid', 'actorName', 'action', 'targetPath', 'summary', 'createdAt']) &&
+        isValidAuditLog(incoming());
+
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

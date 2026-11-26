@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AiContentRepository
+import com.example.data.AppConfig
 import com.example.data.AppNotification
 import com.example.data.CatalogService
 import com.example.data.CoinPackageItem
@@ -150,6 +151,13 @@ class CreatorBoostViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DefaultCatalog.defaultCoinPackages)
 
+    val appConfig: StateFlow<AppConfig> = repository.observeAppConfig()
+        .catch { error ->
+            if (error is CancellationException) throw error
+            emit(AppConfig())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), AppConfig())
+
     init {
         viewModelScope.launch {
             repository.ensureUserProfileInitialized().onFailure { err ->
@@ -220,6 +228,10 @@ class CreatorBoostViewModel(
     }
 
     fun claimDailyReward(onClaimed: (DailyRewardDay) -> Unit = {}) {
+        if (!appConfig.value.dailyRewardsEnabled) {
+            _toastMessage.value = "Daily rewards are temporarily paused."
+            return
+        }
         val profile = currentProfileOrNull() ?: return
         viewModelScope.launch {
             _busyAction.value = true
@@ -237,6 +249,10 @@ class CreatorBoostViewModel(
     }
 
     fun recordSpin(segment: SpinSegment, onDone: () -> Unit = {}) {
+        if (!appConfig.value.spinEnabled) {
+            _toastMessage.value = "Spin & Win is temporarily paused."
+            return
+        }
         val profile = currentProfileOrNull() ?: return
         viewModelScope.launch {
             repository.recordSpinResult(profile, segment)
@@ -254,10 +270,10 @@ class CreatorBoostViewModel(
         val profile = currentProfileOrNull() ?: return
         viewModelScope.launch {
             _busyAction.value = true
-            repository.redeemReferralCode(profile, code)
-                .onSuccess {
-                    _mascotMessage.value = "Referral bonus unlocked! +25 coins!"
-                    _toastMessage.value = "Code redeemed! +25 coins & +5 points added."
+            repository.redeemReferralCode(profile, code, appConfig.value.referralBonusCoins)
+                .onSuccess { bonusCoins ->
+                    _mascotMessage.value = "Referral bonus unlocked! +$bonusCoins coins!"
+                    _toastMessage.value = "Code redeemed! +$bonusCoins coins & +5 points added."
                     onDone()
                 }
                 .onFailure { err ->

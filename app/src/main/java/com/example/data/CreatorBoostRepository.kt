@@ -229,6 +229,31 @@ class CreatorBoostRepository(
         )
     }
 
+    fun observeAppConfig(): Flow<AppConfig> = flow {
+        val uid = requireUserId()
+        val path = "appConfig/global"
+        emitAll(
+            db.collection("appConfig").document("global")
+                .snapshots()
+                .map { snap ->
+                    if (snap.exists()) {
+                        snap.toObject(AppConfig::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) ?: AppConfig()
+                    } else AppConfig()
+                }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val ex = firestoreError ?: (error as? Exception)
+                    if (ex != null && auth.currentUser?.uid == uid) {
+                        handleFirestoreError(ex, OperationType.GET, path)
+                    }
+                    emit(AppConfig())
+                }
+        )
+    }
+
     // --- CRASH-SAFE MUTATIONS (Result<T>) ---
 
     suspend fun ensureUserProfileInitialized(): Result<Unit> {
@@ -242,7 +267,12 @@ class CreatorBoostRepository(
             if (!snap.exists()) {
                 val safeName = (user.displayName?.trim()?.take(80)).takeUnless { it.isNullOrBlank() } ?: "Creator"
                 val safeEmail = (user.email?.trim()?.take(120)).orEmpty()
-                val welcomeCoins = 15L
+                val welcomeCoins = try {
+                    val cfgSnap = db.collection("appConfig").document("global").get().await()
+                    cfgSnap.getLong("welcomeCoins")?.coerceIn(0L, 100000L) ?: 15L
+                } catch (_: Exception) {
+                    15L
+                }
                 val payload = mapOf(
                     "userId" to uid,
                     "displayName" to safeName,
@@ -282,7 +312,7 @@ class CreatorBoostRepository(
                     mapOf(
                         "userId" to uid,
                         "title" to "Welcome to CreatorBoost!",
-                        "body" to "You received 15 welcome bonus coins. Unlock your first hashtag pack today!",
+                        "body" to "You received $welcomeCoins welcome bonus coins. Unlock your first hashtag pack today!",
                         "category" to "REWARD",
                         "read" to false,
                         "createdAt" to FieldValue.serverTimestamp()
@@ -602,7 +632,11 @@ class CreatorBoostRepository(
         }
     }
 
-    suspend fun redeemReferralCode(profile: UserProfile, rawCode: String): Result<Unit> {
+    suspend fun redeemReferralCode(
+        profile: UserProfile,
+        rawCode: String,
+        configuredBonusCoins: Long = 25L
+    ): Result<Long> {
         var path = "users/${profile.userId}"
         return try {
             val uid = requireUserId()
@@ -618,7 +652,7 @@ class CreatorBoostRepository(
                 return Result.failure(IllegalStateException("Referral bonus already claimed on this account."))
             }
 
-            val bonusCoins = 25L
+            val bonusCoins = configuredBonusCoins.coerceIn(0L, 100000L)
             val bonusPoints = 5L
             val userRef = db.collection("users").document(uid)
             val txRef = userRef.collection("transactions").document()
@@ -658,7 +692,7 @@ class CreatorBoostRepository(
                 )
             )
             batch.commit().await()
-            Result.success(Unit)
+            Result.success(bonusCoins)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

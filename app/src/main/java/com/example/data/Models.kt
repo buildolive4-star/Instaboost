@@ -26,7 +26,23 @@ data class UserProfile(
     val spinsToday: Long = 0L,
     val mascotEnabled: Boolean = true,
     val darkMode: Boolean = false,
+    val blocked: Boolean = false,
     @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class AppConfig(
+    @DocumentId val id: String = "global",
+    val maintenanceMode: Boolean = false,
+    val maintenanceMessage: String = "",
+    val announcementTitle: String = "",
+    val announcementBody: String = "",
+    val welcomeCoins: Long = 15L,
+    val referralBonusCoins: Long = 25L,
+    val spinEnabled: Boolean = true,
+    val dailyRewardsEnabled: Boolean = true,
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
 

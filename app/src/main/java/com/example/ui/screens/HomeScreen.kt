@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.data.AppConfig
 import com.example.data.CatalogService
 import com.example.data.DefaultCatalog
 import com.example.data.UserProfile
@@ -73,6 +74,7 @@ import java.util.Locale
 fun HomeScreen(
     profile: UserProfile,
     services: List<CatalogService>,
+    appConfig: AppConfig,
     unreadNotifs: Int,
     onOpenCategory: (String) -> Unit,
     onOpenService: (CatalogService) -> Unit,
@@ -135,6 +137,37 @@ fun HomeScreen(
                         onClick = onOpenSettings,
                         testTag = "home_settings_btn"
                     )
+                }
+            }
+        }
+
+        // Live Admin Announcement Banner (if published from Admin Panel)
+        if (appConfig.announcementTitle.isNotBlank() || appConfig.announcementBody.isNotBlank()) {
+            item {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = RaspberryLight,
+                    border = BorderStroke(1.dp, RaspberryPrimary.copy(alpha = 0.25f)),
+                    modifier = Modifier.fillMaxWidth().testTag("home_announcement_banner")
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        if (appConfig.announcementTitle.isNotBlank()) {
+                            Text(
+                                text = appConfig.announcementTitle,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = RaspberryPrimary
+                            )
+                        }
+                        if (appConfig.announcementBody.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(
+                                text = appConfig.announcementBody,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF171717)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -230,30 +263,34 @@ fun HomeScreen(
             }
         }
 
-        // Quick Actions (Simple 4-item row — No Leaderboard!)
+        // Quick Actions (Simple row honoring live Admin feature switches)
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                QuickActionTile(
-                    icon = Icons.Filled.CardGiftcard,
-                    label = "Daily",
-                    bgColor = GoldCoinLight,
-                    iconTint = Color(0xFFD97706),
-                    onClick = onOpenDailyRewards,
-                    modifier = Modifier.weight(1f),
-                    testTag = "quick_daily_rewards"
-                )
-                QuickActionTile(
-                    icon = Icons.Filled.Casino,
-                    label = "Spin",
-                    bgColor = RaspberryLight,
-                    iconTint = RaspberryPrimary,
-                    onClick = onOpenSpinWheel,
-                    modifier = Modifier.weight(1f),
-                    testTag = "quick_spin_win"
-                )
+                if (appConfig.dailyRewardsEnabled) {
+                    QuickActionTile(
+                        icon = Icons.Filled.CardGiftcard,
+                        label = "Daily",
+                        bgColor = GoldCoinLight,
+                        iconTint = Color(0xFFD97706),
+                        onClick = onOpenDailyRewards,
+                        modifier = Modifier.weight(1f),
+                        testTag = "quick_daily_rewards"
+                    )
+                }
+                if (appConfig.spinEnabled) {
+                    QuickActionTile(
+                        icon = Icons.Filled.Casino,
+                        label = "Spin",
+                        bgColor = RaspberryLight,
+                        iconTint = RaspberryPrimary,
+                        onClick = onOpenSpinWheel,
+                        modifier = Modifier.weight(1f),
+                        testTag = "quick_spin_win"
+                    )
+                }
                 QuickActionTile(
                     icon = Icons.Filled.AutoAwesome,
                     label = "AI Studio",
@@ -276,9 +313,10 @@ fun HomeScreen(
         }
 
         // Daily Check-In Highlight Banner
-        item {
-            val nextDayIndex = ((profile.dailyStreak % 7L) + 1L).toInt()
-            val todayReward = DefaultCatalog.dailyRewards.first { it.day == nextDayIndex }
+        if (appConfig.dailyRewardsEnabled) {
+            item {
+                val nextDayIndex = ((profile.dailyStreak % 7L) + 1L).toInt()
+                val todayReward = DefaultCatalog.dailyRewards.first { it.day == nextDayIndex }
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = Color.Transparent,
@@ -332,6 +370,7 @@ fun HomeScreen(
                     }
                 }
             }
+        }
         }
 
         // Popular Categories Horizontal Row

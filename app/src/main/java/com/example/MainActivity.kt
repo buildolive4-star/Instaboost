@@ -29,6 +29,10 @@ import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ShoppingCart
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +41,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -213,6 +218,7 @@ private fun AuthenticatedAppShell(
     val supportTickets by viewModel.supportTickets.collectAsStateWithLifecycle()
     val services by viewModel.catalogServices.collectAsStateWithLifecycle()
     val coinPackages by viewModel.coinPackages.collectAsStateWithLifecycle()
+    val appConfig by viewModel.appConfig.collectAsStateWithLifecycle()
     val toastMessage by viewModel.toastMessage.collectAsStateWithLifecycle()
     val mascotMessage by viewModel.mascotMessage.collectAsStateWithLifecycle()
     val busy by viewModel.busyAction.collectAsStateWithLifecycle()
@@ -270,6 +276,22 @@ private fun AuthenticatedAppShell(
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = RaspberryPrimary)
                     }
+                } else if (profile.blocked && !viewModel.isAdmin) {
+                    StatusGateOverlay(
+                        icon = Icons.Filled.Block,
+                        title = "Account Suspended",
+                        message = "Your account has been temporarily restricted by the administrator. Contact support if you believe this is a mistake.",
+                        onSignOut = { signOutUser(credentialManager, scope, onSignOutComplete = onSignedOut) }
+                    )
+                } else if (appConfig.maintenanceMode && !viewModel.isAdmin) {
+                    StatusGateOverlay(
+                        icon = Icons.Filled.Build,
+                        title = "Maintenance in Progress",
+                        message = appConfig.maintenanceMessage.ifBlank {
+                            "CreatorBoost is currently undergoing scheduled maintenance. Please check back shortly!"
+                        },
+                        onSignOut = { signOutUser(credentialManager, scope, onSignOutComplete = onSignedOut) }
+                    )
                 } else {
                     NavHost(
                         navController = navController,
@@ -306,6 +328,7 @@ private fun AuthenticatedAppShell(
                             HomeScreen(
                                 profile = profile,
                                 services = services,
+                                appConfig = appConfig,
                                 unreadNotifs = unreadNotifs,
                                 onOpenCategory = { catId ->
                                     navController.navigate(Routes.categoryDetails(catId))
@@ -499,8 +522,12 @@ private fun AuthenticatedAppShell(
                     }
                 }
 
+                val showChrome = isPrimaryTab && profileState is UiState.Success &&
+                    !(profile.blocked && !viewModel.isAdmin) &&
+                    !(appConfig.maintenanceMode && !viewModel.isAdmin)
+
                 // Cute Floating Mascot Companion (Exact signature vibe of the reference screenshots!)
-                if (isPrimaryTab && currentRoute != Routes.WALLET) {
+                if (showChrome && currentRoute != Routes.WALLET) {
                     FloatingMascotCompanion(
                         visible = profile.mascotEnabled,
                         message = mascotMessage,
@@ -512,7 +539,7 @@ private fun AuthenticatedAppShell(
                 }
 
                 // Clean Fixed 4-Tab Bottom Navigation Bar (Services, Wallet, Home, Account — NO Leaderboard)
-                if (isPrimaryTab) {
+                if (showChrome) {
                     CreatorBoostBottomBar(
                         currentRoute = currentRoute,
                         onSelectTab = ::navigateToTab,
@@ -571,6 +598,52 @@ private fun CreatorBoostBottomBar(
                         color = labelColor
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusGateOverlay(
+    icon: ImageVector,
+    title: String,
+    message: String,
+    onSignOut: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = RaspberryPrimary,
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onSignOut,
+                colors = ButtonDefaults.buttonColors(containerColor = RaspberryPrimary),
+                modifier = Modifier.testTag("gate_sign_out_btn")
+            ) {
+                Text("Sign Out")
             }
         }
     }
