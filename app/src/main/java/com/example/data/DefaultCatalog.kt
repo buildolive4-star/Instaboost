@@ -6,7 +6,7 @@ import com.example.R
 object DefaultCatalog {
 
     val levelTiers: List<LevelTier> = listOf(
-        LevelTier(1, "Beginner", 0L, "Welcome to CreatorBoost"),
+        LevelTier(1, "Beginner", 0L, "Welcome to Fame Maker"),
         LevelTier(2, "Starter", 25L, "Unlocks Starter Creator Badge"),
         LevelTier(3, "Explorer", 75L, "+5% Daily Bonus Energy"),
         LevelTier(4, "Creator", 150L, "Pro Bio Studio Preset"),
@@ -15,7 +15,7 @@ object DefaultCatalog {
         LevelTier(7, "Elite", 800L, "VIP Creator Crown"),
         LevelTier(8, "Champion", 1200L, "Master Content Vault"),
         LevelTier(9, "Master", 1800L, "Diamond Flame Aura"),
-        LevelTier(10, "Legend", 2500L, "Ultimate CreatorBoost Legend")
+        LevelTier(10, "Legend", 2500L, "Ultimate Fame Maker Legend")
     )
 
     fun calculateLevel(points: Long): Long {

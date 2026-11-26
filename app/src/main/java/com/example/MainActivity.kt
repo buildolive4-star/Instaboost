@@ -216,6 +216,7 @@ private fun AuthenticatedAppShell(
     val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     val supportTickets by viewModel.supportTickets.collectAsStateWithLifecycle()
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
     val services by viewModel.catalogServices.collectAsStateWithLifecycle()
     val coinPackages by viewModel.coinPackages.collectAsStateWithLifecycle()
     val appConfig by viewModel.appConfig.collectAsStateWithLifecycle()
@@ -288,7 +289,7 @@ private fun AuthenticatedAppShell(
                         icon = Icons.Filled.Build,
                         title = "Maintenance in Progress",
                         message = appConfig.maintenanceMessage.ifBlank {
-                            "CreatorBoost is currently undergoing scheduled maintenance. Please check back shortly!"
+                            "Fame Maker is currently undergoing scheduled maintenance. Please check back shortly!"
                         },
                         onSignOut = { signOutUser(credentialManager, scope, onSignOutComplete = onSignedOut) }
                     )
@@ -301,6 +302,7 @@ private fun AuthenticatedAppShell(
                         composable(Routes.SERVICES) {
                             ServicesScreen(
                                 profile = profile,
+                                categories = categories,
                                 services = services,
                                 onCategorySelected = { catId ->
                                     navController.navigate(Routes.categoryDetails(catId))
@@ -327,6 +329,7 @@ private fun AuthenticatedAppShell(
                         composable(Routes.HOME) {
                             HomeScreen(
                                 profile = profile,
+                                categories = categories,
                                 services = services,
                                 appConfig = appConfig,
                                 unreadNotifs = unreadNotifs,
@@ -374,6 +377,7 @@ private fun AuthenticatedAppShell(
                             val categoryId = backStack.arguments?.getString("categoryId").orEmpty()
                             CategoryDetailsScreen(
                                 categoryId = categoryId,
+                                categories = categories,
                                 services = services,
                                 orders = orders,
                                 onBack = { navController.popBackStack() },
@@ -389,6 +393,7 @@ private fun AuthenticatedAppShell(
                             val existingOrder = orders.firstOrNull { it.serviceId == service.id }
                             CreateOrderScreen(
                                 service = service,
+                                categories = categories,
                                 profile = profile,
                                 existingOrder = existingOrder,
                                 favorites = favorites,

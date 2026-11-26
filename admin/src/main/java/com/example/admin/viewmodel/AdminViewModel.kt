@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.admin.data.AdminAppConfig
 import com.example.admin.data.AdminAuditLog
+import com.example.admin.data.AdminCatalogCategory
 import com.example.admin.data.AdminCatalogService
 import com.example.admin.data.AdminCoinPackage
 import com.example.admin.data.AdminOrderRecord
@@ -40,6 +41,9 @@ class AdminViewModel(
     val selectedUserId: StateFlow<String?> = _selectedUserId.asStateFlow()
 
     val users: StateFlow<List<AdminUserProfile>> = repository.observeAllUsers()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    val categories: StateFlow<List<AdminCatalogCategory>> = repository.observeAllCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     val services: StateFlow<List<AdminCatalogService>> = repository.observeAllServices()
@@ -145,6 +149,65 @@ class AdminViewModel(
         }
     }
 
+    fun saveCategory(
+        existingId: String?,
+        name: String,
+        subtitle: String,
+        description: String,
+        emoji: String,
+        photoUrl: String,
+        sortOrder: Long,
+        active: Boolean,
+        onDone: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _busy.value = true
+            repository.saveCatalogCategory(
+                existingId, name, subtitle, description, emoji, photoUrl, sortOrder, active, session.displayName
+            ).onSuccess {
+                _toast.value = if (existingId == null) "Category added!" else "Category updated!"
+                onDone()
+            }.onFailure { _toast.value = it.localizedMessage ?: "Failed to save category" }
+            _busy.value = false
+        }
+    }
+
+    fun deleteCategory(category: AdminCatalogCategory) {
+        viewModelScope.launch {
+            _busy.value = true
+            repository.deleteCatalogCategory(category.id, category.name, session.displayName)
+                .onSuccess { _toast.value = "Deleted category '${category.name}'" }
+                .onFailure { _toast.value = it.localizedMessage ?: "Delete failed" }
+            _busy.value = false
+        }
+    }
+
+    fun seedDefaultCategories() {
+        viewModelScope.launch {
+            _busy.value = true
+            val existing = categories.value.map { it.id }.toSet()
+            repository.seedDefaultCategories(existing, session.displayName)
+                .onSuccess { added ->
+                    _toast.value = if (added > 0) "Loaded $added default categories for editing!" else "All default categories already loaded"
+                }
+                .onFailure { _toast.value = it.localizedMessage ?: "Failed to load categories" }
+            _busy.value = false
+        }
+    }
+
+    fun seedDefaultServices() {
+        viewModelScope.launch {
+            _busy.value = true
+            val existing = services.value.map { it.id }.toSet()
+            repository.seedDefaultServices(existing, session.displayName)
+                .onSuccess { added ->
+                    _toast.value = if (added > 0) "Loaded $added starter services for editing!" else "Starter services already loaded"
+                }
+                .onFailure { _toast.value = it.localizedMessage ?: "Failed to load services" }
+            _busy.value = false
+        }
+    }
+
     fun saveService(
         existingId: String?,
         categoryId: String,
@@ -152,6 +215,8 @@ class AdminViewModel(
         name: String,
         packType: String,
         coinPrice: Long,
+        providerName: String,
+        photoUrl: String,
         trending: Boolean,
         published: Boolean,
         contentLines: List<String>,
@@ -161,7 +226,7 @@ class AdminViewModel(
             _busy.value = true
             repository.saveCatalogService(
                 existingId, categoryId, categoryName, name, packType,
-                coinPrice, trending, published, contentLines, session.displayName
+                coinPrice, providerName, photoUrl, trending, published, contentLines, session.displayName
             ).onSuccess {
                 _toast.value = if (existingId == null) "Service published!" else "Service updated!"
                 onDone()

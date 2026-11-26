@@ -48,12 +48,18 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import com.example.data.AppConfig
 import com.example.data.CatalogService
 import com.example.data.DefaultCatalog
+import com.example.data.ServiceCategoryUi
 import com.example.data.UserProfile
 import com.example.ui.components.BlueStarCoin
 import com.example.ui.components.CategoryTileCard
+import com.example.ui.components.DynamicPhotoImage
 import com.example.ui.components.GoldFlameCoin
 import com.example.ui.components.HeaderIconButton
 import com.example.ui.components.LevelCrownPill
@@ -73,6 +79,7 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     profile: UserProfile,
+    categories: List<ServiceCategoryUi>,
     services: List<CatalogService>,
     appConfig: AppConfig,
     unreadNotifs: Int,
@@ -109,19 +116,35 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Hello, ${profile.displayName.substringBefore(" ")}",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_fame_maker_logo),
+                        contentDescription = "Fame Maker",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(13.dp))
                     )
-                    Text(
-                        text = "Discover packs & grow faster",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Fame Maker",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Hi, ${profile.displayName.substringBefore(" ")} • Grow faster",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     HeaderIconButton(
@@ -393,7 +416,7 @@ fun HomeScreen(
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(DefaultCatalog.categories.take(6), key = { it.id }) { cat ->
+                items(categories.take(8), key = { it.id }) { cat ->
                     val count = services.count { it.categoryId == cat.id }
                     CategoryTileCard(
                         category = cat,
@@ -445,15 +468,23 @@ fun HomeScreen(
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             color = RaspberryLight,
-                            modifier = Modifier.size(46.dp)
+                            modifier = Modifier.size(50.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = service.itemCount.toString(),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = RaspberryPrimary
+                            if (service.photoUrl.isNotBlank()) {
+                                DynamicPhotoImage(
+                                    photoUrl = service.photoUrl,
+                                    contentDescription = service.name,
+                                    modifier = Modifier.fillMaxSize()
                                 )
+                            } else {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = service.itemCount.toString(),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = RaspberryPrimary
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.width(14.dp))
@@ -465,10 +496,13 @@ fun HomeScreen(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+                            val providerPart = if (service.providerName.isNotBlank()) " • ${service.providerName}" else ""
                             Text(
-                                text = "${service.categoryName} • ${service.packType.lowercase().replaceFirstChar { it.uppercase() }}",
+                                text = "${service.categoryName}$providerPart",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
+                                color = TextSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }

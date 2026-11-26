@@ -62,6 +62,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.ui.graphics.asImageBitmap
+import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.ServiceCategoryUi
 import com.example.ui.theme.BlueStar
@@ -322,6 +326,56 @@ fun PointsStarChip(text: String) {
 }
 
 @Composable
+fun DynamicPhotoImage(
+    photoUrl: String,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    fallbackRes: Int? = null,
+    fallbackContent: @Composable () -> Unit = {}
+) {
+    val trimmed = photoUrl.trim()
+    if (trimmed.startsWith("data:image", ignoreCase = true) && trimmed.contains("base64,")) {
+        val bitmap = remember(trimmed) {
+            try {
+                val raw = trimmed.substringAfter("base64,")
+                val bytes = Base64.decode(raw, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            } catch (_: Exception) {
+                null
+            }
+        }
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                modifier = modifier
+            )
+            return
+        }
+    } else if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
+        AsyncImage(
+            model = trimmed,
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+        )
+        return
+    }
+
+    if (fallbackRes != null) {
+        Image(
+            painter = painterResource(id = fallbackRes),
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+        )
+    } else {
+        fallbackContent()
+    }
+}
+
+@Composable
 fun CategoryTileCard(
     category: ServiceCategoryUi,
     packCount: Int,
@@ -335,44 +389,43 @@ fun CategoryTileCard(
             .clickable(onClick = onClick)
             .testTag("category_card_${category.id}")
     ) {
-        if (category.imageRes != null) {
-            Image(
-                painter = painterResource(id = category.imageRes),
-                contentDescription = category.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(category.gradientStart, category.gradientEnd)
+        DynamicPhotoImage(
+            photoUrl = category.photoUrl,
+            contentDescription = category.name,
+            fallbackRes = category.imageRes,
+            modifier = Modifier.fillMaxSize(),
+            fallbackContent = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(category.gradientStart, category.gradientEnd)
+                            )
                         )
-                    )
-            ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.14f),
-                        radius = size.width * 0.55f,
-                        center = Offset(size.width * 0.85f, size.height * 0.2f)
-                    )
-                    drawCircle(
-                        color = Color.Black.copy(alpha = 0.12f),
-                        radius = size.width * 0.5f,
-                        center = Offset(size.width * 0.15f, size.height * 0.9f)
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.14f),
+                            radius = size.width * 0.55f,
+                            center = Offset(size.width * 0.85f, size.height * 0.2f)
+                        )
+                        drawCircle(
+                            color = Color.Black.copy(alpha = 0.12f),
+                            radius = size.width * 0.5f,
+                            center = Offset(size.width * 0.15f, size.height * 0.9f)
+                        )
+                    }
+                    Text(
+                        text = category.emoji,
+                        fontSize = 36.sp,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .offset(y = 10.dp)
                     )
                 }
-                Text(
-                    text = category.emoji,
-                    fontSize = 36.sp,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .offset(y = 10.dp)
-                )
             }
-        }
+        )
 
         // Top dark scrim for crisp readable label just like screenshot
         Box(
@@ -478,7 +531,7 @@ fun FloatingMascotCompanion(
         ) {
             Image(
                 painter = painterResource(id = R.drawable.img_mascot_flame_1795714394908),
-                contentDescription = "CreatorBoost Mascot",
+                contentDescription = "Fame Maker Mascot",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()

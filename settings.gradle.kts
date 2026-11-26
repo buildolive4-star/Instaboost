@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "CreatorBoost"
+rootProject.name = "Fame Maker"
 
 include(":app", ":admin")

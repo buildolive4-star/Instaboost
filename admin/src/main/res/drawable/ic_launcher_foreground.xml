@@ -1,15 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <!-- Raspberry shield emblem -->
-    <path
-        android:fillColor="#D10F46"
-        android:pathData="M54,22 L78,31 L78,52 C78,68 67,80 54,86 C41,80 30,68 30,52 L30,31 Z" />
-    <!-- Gold inner crown/star accent -->
-    <path
-        android:fillColor="#F6BE35"
-        android:pathData="M54,37 L58.2,46.6 L68.5,47.6 L60.7,54.5 L63,64.6 L54,59.3 L45,64.6 L47.3,54.5 L39.5,47.6 L49.8,46.6 Z" />
-</vector>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_fame_maker_logo"
+    android:insetLeft="18dp"
+    android:insetTop="18dp"
+    android:insetRight="18dp"
+    android:insetBottom="18dp" />

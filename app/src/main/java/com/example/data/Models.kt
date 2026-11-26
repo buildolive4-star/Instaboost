@@ -127,7 +127,24 @@ data class CatalogService(
     val coinPrice: Long = 3L,
     val trending: Boolean = false,
     val published: Boolean = true,
+    val providerName: String = "Fame Maker",
+    val photoUrl: String = "",
     val contentLines: List<String> = emptyList(),
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class CatalogCategory(
+    @DocumentId val id: String = "",
+    val name: String = "",
+    val subtitle: String = "Trending packs",
+    val description: String = "",
+    val emoji: String = "✨",
+    val photoUrl: String = "",
+    val sortOrder: Long = 10L,
+    val active: Boolean = true,
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
@@ -154,6 +171,7 @@ data class ServiceCategoryUi(
     val subtitle: String,
     val description: String,
     val imageRes: Int? = null,
+    val photoUrl: String = "",
     val gradientStart: Color,
     val gradientEnd: Color,
     val bannerTint: Color,

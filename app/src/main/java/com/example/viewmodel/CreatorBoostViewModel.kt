@@ -3,6 +3,7 @@ package com.example.viewmodel
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.compose.ui.graphics.Color
 import com.example.data.AiContentRepository
 import com.example.data.AppConfig
 import com.example.data.AppNotification
@@ -13,6 +14,7 @@ import com.example.data.DailyRewardDay
 import com.example.data.DefaultCatalog
 import com.example.data.FavoritePack
 import com.example.data.OrderRecord
+import com.example.data.ServiceCategoryUi
 import com.example.data.SpinSegment
 import com.example.data.SupportTicket
 import com.example.data.UiState
@@ -139,6 +141,34 @@ class CreatorBoostViewModel(
             emit(DefaultCatalog.defaultServices)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DefaultCatalog.defaultServices)
+
+    val categories: StateFlow<List<ServiceCategoryUi>> = repository.observeActiveCatalogCategories()
+        .map { remote ->
+            val defaultsById = DefaultCatalog.categories.associateBy { it.id }
+            val remoteMapped = remote.map { cat ->
+                val base = defaultsById[cat.id]
+                ServiceCategoryUi(
+                    id = cat.id,
+                    name = cat.name.ifBlank { base?.name ?: "Category" },
+                    subtitle = cat.subtitle.ifBlank { base?.subtitle ?: "Trending packs" },
+                    description = cat.description.ifBlank { base?.description ?: "Curated creator packs" },
+                    imageRes = if (cat.photoUrl.isBlank()) base?.imageRes else null,
+                    photoUrl = cat.photoUrl,
+                    gradientStart = base?.gradientStart ?: Color(0xFF0077FF),
+                    gradientEnd = base?.gradientEnd ?: Color(0xFF00C6FF),
+                    bannerTint = base?.bannerTint ?: Color(0xFFE3F1FC),
+                    emoji = cat.emoji.ifBlank { base?.emoji ?: "✨" },
+                    trending = base?.trending ?: true
+                )
+            }
+            val remoteIds = remoteMapped.map { it.id }.toSet()
+            remoteMapped + DefaultCatalog.categories.filterNot { it.id in remoteIds }
+        }
+        .catch { error ->
+            if (error is CancellationException) throw error
+            emit(DefaultCatalog.categories)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DefaultCatalog.categories)
 
     val coinPackages: StateFlow<List<CoinPackageItem>> = repository.observeActiveCoinPackages()
         .map { remote ->

@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Dashboard
@@ -47,10 +50,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
@@ -228,6 +234,7 @@ private fun AdminAuthenticatedShell(
     )
 
     val users by viewModel.users.collectAsStateWithLifecycle()
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
     val services by viewModel.services.collectAsStateWithLifecycle()
     val packages by viewModel.coinPackages.collectAsStateWithLifecycle()
     val appConfig by viewModel.appConfig.collectAsStateWithLifecycle()
@@ -287,18 +294,29 @@ private fun AdminAuthenticatedShell(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "CreatorBoost Admin",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_fame_maker_logo),
+                                contentDescription = "Fame Maker Admin",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
                             )
-                            Text(
-                                text = currentTab.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = AdminPrimary,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Fame Maker Admin",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = currentTab.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AdminPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                         IconButton(
                             onClick = onSignOut,
@@ -351,11 +369,18 @@ private fun AdminAuthenticatedShell(
                         )
 
                         AdminNavTab.CATALOG -> AdminCatalogTab(
+                            categories = categories,
                             services = services,
                             packages = packages,
                             busy = busy,
-                            onSaveService = { id, catId, catName, name, type, price, trending, published, lines, done ->
-                                viewModel.saveService(id, catId, catName, name, type, price, trending, published, lines, done)
+                            onSaveCategory = { id, name, subtitle, desc, emoji, photo, order, active, done ->
+                                viewModel.saveCategory(id, name, subtitle, desc, emoji, photo, order, active, done)
+                            },
+                            onDeleteCategory = { viewModel.deleteCategory(it) },
+                            onSeedDefaultCategories = { viewModel.seedDefaultCategories() },
+                            onSeedDefaultServices = { viewModel.seedDefaultServices() },
+                            onSaveService = { id, catId, catName, name, type, price, provider, photo, trending, published, lines, done ->
+                                viewModel.saveService(id, catId, catName, name, type, price, provider, photo, trending, published, lines, done)
                             },
                             onDeleteService = { viewModel.deleteService(it) },
                             onSavePackage = { id, name, coins, bonus, pts, inr, badge, order, active, done ->

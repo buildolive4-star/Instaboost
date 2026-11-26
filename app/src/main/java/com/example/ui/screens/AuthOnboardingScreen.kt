@@ -157,10 +157,17 @@ fun AuthOnboardingScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    GoldFlameCoin(size = 28.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_fame_maker_logo),
+                        contentDescription = "Fame Maker Logo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "CreatorBoost",
+                        text = "Fame Maker",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -180,28 +187,28 @@ fun AuthOnboardingScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Mascot Hero
+            // Fame Maker Brand Hero Logo
             Surface(
-                shape = CircleShape,
+                shape = RoundedCornerShape(34.dp),
                 color = PureWhite,
-                shadowElevation = 8.dp,
-                border = BorderStroke(3.dp, RaspberryLight),
-                modifier = Modifier.size(136.dp)
+                shadowElevation = 10.dp,
+                border = BorderStroke(3.dp, Color(0xFFDCEBFF)),
+                modifier = Modifier.size(134.dp)
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.img_mascot_flame_1795714394908),
-                    contentDescription = "CreatorBoost Mascot",
+                    painter = painterResource(id = R.drawable.ic_fame_maker_logo),
+                    contentDescription = "Fame Maker",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(6.dp)
-                        .clip(CircleShape)
+                        .padding(4.dp)
+                        .clip(RoundedCornerShape(30.dp))
                 )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "Create More. Grow More.",
+                text = "Grow Faster. Stand Out.",
                 style = MaterialTheme.typography.labelLarge,
                 color = RaspberryPrimary,
                 fontWeight = FontWeight.Bold

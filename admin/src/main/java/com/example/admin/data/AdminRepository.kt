@@ -151,6 +151,22 @@ class AdminRepository(
         )
     }
 
+    fun observeAllCategories(): Flow<List<AdminCatalogCategory>> = flow {
+        emitAll(
+            db.collection("catalogCategories")
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(AdminCatalogCategory::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedWith(compareBy<AdminCatalogCategory> { it.sortOrder }.thenBy { it.name.lowercase(Locale.US) })
+                }
+                .catch { e ->
+                    if (e is CancellationException) throw e
+                    logAdminFirestoreError(e as? Exception ?: Exception(e), AdminOpType.LIST, "catalogCategories")
+                    emit(emptyList())
+                }
+        )
+    }
+
     fun observeAllServices(): Flow<List<AdminCatalogService>> = flow {
         emitAll(
             db.collection("catalogServices")
@@ -484,7 +500,241 @@ class AdminRepository(
         }
     }
 
-    // --- CATALOG SERVICES & COIN PACKAGES ---
+    // --- CATALOG CATEGORIES, SERVICES & COIN PACKAGES ---
+
+    suspend fun saveCatalogCategory(
+        existingId: String?,
+        name: String,
+        subtitle: String,
+        description: String,
+        emoji: String,
+        photoUrl: String,
+        sortOrder: Long,
+        active: Boolean,
+        actorName: String
+    ): Result<Unit> {
+        var path = "catalogCategories"
+        return try {
+            requireUid()
+            val cleanName = name.trim()
+            val cleanSubtitle = subtitle.trim().ifBlank { "Trending packs" }.take(100)
+            val cleanDesc = description.trim().ifBlank { "Curated creator packs for $cleanName" }.take(240)
+            val cleanEmoji = emoji.trim().ifBlank { "✨" }.take(16)
+            val cleanPhoto = photoUrl.trim().take(250_000)
+            require(cleanName.length in 2..80) { "Category name must be 2-80 characters." }
+
+            val fields = mutableMapOf<String, Any>(
+                "name" to cleanName,
+                "subtitle" to cleanSubtitle,
+                "description" to cleanDesc,
+                "emoji" to cleanEmoji,
+                "photoUrl" to cleanPhoto,
+                "sortOrder" to sortOrder.coerceIn(0L, 200L),
+                "active" to active,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            if (existingId.isNullOrBlank()) {
+                val slug = cleanName.lowercase(Locale.US)
+                    .replace(Regex("[^a-z0-9]+"), "_")
+                    .trim('_')
+                    .take(36)
+                val ref = if (slug.length >= 2) {
+                    val candidate = db.collection("catalogCategories").document(slug)
+                    if (candidate.get().await().exists()) db.collection("catalogCategories").document() else candidate
+                } else {
+                    db.collection("catalogCategories").document()
+                }
+                path = ref.path
+                fields["createdAt"] = FieldValue.serverTimestamp()
+                ref.set(fields).await()
+                recordAudit(actorName, "CREATE_CATEGORY", path, "Created category '$cleanName'")
+            } else {
+                val ref = db.collection("catalogCategories").document(existingId)
+                path = ref.path
+                ref.update(fields).await()
+                recordAudit(actorName, "UPDATE_CATEGORY", path, "Updated category '$cleanName'")
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.WRITE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteCatalogCategory(categoryId: String, categoryName: String, actorName: String): Result<Unit> {
+        val path = "catalogCategories/$categoryId"
+        return try {
+            requireUid()
+            db.collection("catalogCategories").document(categoryId).delete().await()
+            recordAudit(actorName, "DELETE_CATEGORY", path, "Deleted category '$categoryName'")
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.DELETE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun seedDefaultCategories(existingIds: Set<String>, actorName: String): Result<Int> {
+        return try {
+            requireUid()
+            val defaults = listOf(
+                Triple("food", "Food", "🍔") to ("Trending hashtags" to "Mouth-watering foodie hashtags, recipe captions, and restaurant reel hooks."),
+                Triple("christmas", "Christmas", "🎄") to ("Trending hashtags" to "Festive holiday hashtags, cozy winter captions, and gift reel prompts."),
+                Triple("fashion", "Fashion", "👗") to ("Trending hashtags" to "Editorial style tags, OOTD captions, and aesthetic fashion creator bios."),
+                Triple("photography", "Photography", "📷") to ("Trending hashtags" to "Portrait, street, DSLR, and golden-hour photography tag packs."),
+                Triple("funny", "Funny", "😂") to ("Trending hashtags" to "Viral meme hashtags, witty one-liners, and relatable comedy reel ideas."),
+                Triple("travel", "Travel", "✈️") to ("Trending hashtags" to "Wanderlust hashtags, destination captions, and adventure story templates."),
+                Triple("fitness", "Fitness", "💪") to ("Trending hashtags" to "Gym motivation tags, workout captions, and transformation reel hooks."),
+                Triple("beauty", "Beauty", "💄") to ("Trending hashtags" to "Skincare routines, makeup tutorial tags, and glam captions."),
+                Triple("gaming", "Gaming", "🎮") to ("Trending hashtags" to "Esports highlights, stream bio templates, and viral gaming clip tags."),
+                Triple("technology", "Technology", "💻") to ("Trending hashtags" to "Gadget unboxing tags, coding reels, and tech reviewer captions."),
+                Triple("motivation", "Motivation", "🔥") to ("Trending hashtags" to "Mindset quotes, daily hustle hashtags, and inspiring creator bios."),
+                Triple("lifestyle", "Lifestyle", "🌿") to ("Trending hashtags" to "Aesthetic daily vlog tags, morning routine captions, and clean bios.")
+            )
+            val batch = db.batch()
+            var added = 0
+            defaults.forEachIndexed { idx, (meta, copy) ->
+                val (id, name, emoji) = meta
+                if (id !in existingIds) {
+                    val ref = db.collection("catalogCategories").document(id)
+                    batch.set(
+                        ref,
+                        mapOf(
+                            "name" to name,
+                            "subtitle" to copy.first,
+                            "description" to copy.second,
+                            "emoji" to emoji,
+                            "photoUrl" to "",
+                            "sortOrder" to (idx + 1).toLong(),
+                            "active" to true,
+                            "createdAt" to FieldValue.serverTimestamp(),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    added++
+                }
+            }
+            if (added > 0) {
+                batch.commit().await()
+                recordAudit(actorName, "SEED_CATEGORIES", "catalogCategories", "Imported $added default categories")
+            }
+            Result.success(added)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.WRITE, "catalogCategories")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun seedDefaultServices(existingIds: Set<String>, actorName: String): Result<Int> {
+        return try {
+            requireUid()
+            val starters = listOf(
+                AdminCatalogService(
+                    id = "christmas_30",
+                    categoryId = "christmas",
+                    categoryName = "Christmas",
+                    name = "30 Christmas",
+                    packType = "HASHTAGS",
+                    coinPrice = 3L,
+                    providerName = "Fame Maker",
+                    trending = true,
+                    published = true,
+                    contentLines = listOf(
+                        "#merrychristmas", "#christmastree", "#christmastime", "#christmasdecor",
+                        "#christmaseve", "#christmasgifts", "#christmaslights", "#christmasvibes",
+                        "#winterwonderland", "#holidayseason", "#festivevibes", "#cozychristmas"
+                    )
+                ),
+                AdminCatalogService(
+                    id = "food_30",
+                    categoryId = "food",
+                    categoryName = "Food",
+                    name = "30 Food",
+                    packType = "HASHTAGS",
+                    coinPrice = 3L,
+                    providerName = "Fame Maker",
+                    trending = true,
+                    published = true,
+                    contentLines = listOf(
+                        "#foodie", "#foodporn", "#instafood", "#foodphotography", "#yummy",
+                        "#delicious", "#foodstagram", "#foodlover", "#homemade", "#streetfood"
+                    )
+                ),
+                AdminCatalogService(
+                    id = "fashion_30",
+                    categoryId = "fashion",
+                    categoryName = "Fashion",
+                    name = "30 Fashion",
+                    packType = "HASHTAGS",
+                    coinPrice = 4L,
+                    providerName = "Fame Maker",
+                    trending = true,
+                    published = true,
+                    contentLines = listOf(
+                        "#fashion", "#ootd", "#styleinspo", "#streetstyle", "#fashionblogger",
+                        "#lookbook", "#aestheticoutfit", "#trendsetter", "#mensfashion", "#womenswear"
+                    )
+                ),
+                AdminCatalogService(
+                    id = "fitness_30",
+                    categoryId = "fitness",
+                    categoryName = "Fitness",
+                    name = "30 Fitness",
+                    packType = "HASHTAGS",
+                    coinPrice = 4L,
+                    providerName = "Fame Maker",
+                    trending = true,
+                    published = true,
+                    contentLines = listOf(
+                        "#fitness", "#gymmotivation", "#workout", "#fitlife", "#bodybuilding",
+                        "#calisthenics", "#healthylifestyle", "#gains", "#training", "#fitnessreels"
+                    )
+                )
+            )
+            val batch = db.batch()
+            var added = 0
+            starters.forEach { svc ->
+                if (svc.id !in existingIds) {
+                    val ref = db.collection("catalogServices").document(svc.id)
+                    batch.set(
+                        ref,
+                        mapOf(
+                            "categoryId" to svc.categoryId,
+                            "categoryName" to svc.categoryName,
+                            "name" to svc.name,
+                            "packType" to svc.packType,
+                            "itemCount" to svc.contentLines.size.toLong(),
+                            "coinPrice" to svc.coinPrice,
+                            "providerName" to svc.providerName,
+                            "photoUrl" to svc.photoUrl,
+                            "trending" to svc.trending,
+                            "published" to svc.published,
+                            "contentLines" to svc.contentLines,
+                            "createdAt" to FieldValue.serverTimestamp(),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    added++
+                }
+            }
+            if (added > 0) {
+                batch.commit().await()
+                recordAudit(actorName, "SEED_SERVICES", "catalogServices", "Imported $added starter services")
+            }
+            Result.success(added)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.WRITE, "catalogServices")
+            Result.failure(e)
+        }
+    }
 
     suspend fun saveCatalogService(
         existingId: String?,
@@ -493,6 +743,8 @@ class AdminRepository(
         name: String,
         packType: String,
         coinPrice: Long,
+        providerName: String,
+        photoUrl: String,
         trending: Boolean,
         published: Boolean,
         contentLines: List<String>,
@@ -502,6 +754,10 @@ class AdminRepository(
         return try {
             requireUid()
             val cleanName = name.trim()
+            val cleanCategoryId = categoryId.trim().ifBlank { "general" }.take(60)
+            val cleanCategoryName = categoryName.trim().ifBlank { "General" }.take(60)
+            val cleanProvider = providerName.trim().ifBlank { "Fame Maker" }.take(100)
+            val cleanPhoto = photoUrl.trim().take(250_000)
             val cleanLines = contentLines.map { it.trim() }.filter { it.isNotBlank() }.take(60)
             require(cleanName.length in 2..120) { "Service name must be 2-120 characters." }
             require(cleanLines.isNotEmpty()) { "Enter at least one line of content." }
@@ -510,12 +766,14 @@ class AdminRepository(
                 path = ref.path
                 ref.set(
                     mapOf(
-                        "categoryId" to categoryId.take(60),
-                        "categoryName" to categoryName.take(60),
+                        "categoryId" to cleanCategoryId,
+                        "categoryName" to cleanCategoryName,
                         "name" to cleanName,
                         "packType" to packType,
                         "itemCount" to cleanLines.size.toLong(),
                         "coinPrice" to coinPrice.coerceIn(0L, 100_000L),
+                        "providerName" to cleanProvider,
+                        "photoUrl" to cleanPhoto,
                         "trending" to trending,
                         "published" to published,
                         "contentLines" to cleanLines,
@@ -523,25 +781,27 @@ class AdminRepository(
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 ).await()
-                recordAudit(actorName, "CREATE_SERVICE", path, "Published '$cleanName'")
+                recordAudit(actorName, "CREATE_SERVICE", path, "Published '$cleanName' by $cleanProvider")
             } else {
                 val ref = db.collection("catalogServices").document(existingId)
                 path = ref.path
                 ref.update(
                     mapOf(
-                        "categoryId" to categoryId.take(60),
-                        "categoryName" to categoryName.take(60),
+                        "categoryId" to cleanCategoryId,
+                        "categoryName" to cleanCategoryName,
                         "name" to cleanName,
                         "packType" to packType,
                         "itemCount" to cleanLines.size.toLong(),
                         "coinPrice" to coinPrice.coerceIn(0L, 100_000L),
+                        "providerName" to cleanProvider,
+                        "photoUrl" to cleanPhoto,
                         "trending" to trending,
                         "published" to published,
                         "contentLines" to cleanLines,
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 ).await()
-                recordAudit(actorName, "UPDATE_SERVICE", path, "Updated '$cleanName'")
+                recordAudit(actorName, "UPDATE_SERVICE", path, "Updated '$cleanName' ($coinPrice coins)")
             }
             Result.success(Unit)
         } catch (e: CancellationException) {

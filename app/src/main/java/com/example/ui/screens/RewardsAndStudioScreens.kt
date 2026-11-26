@@ -577,7 +577,7 @@ fun ReferEarnScreen(
                     }
                     Button(
                         onClick = {
-                            val shareText = "Join me on CreatorBoost for trending hashtags, captions & AI bio tools! Use my code ${profile.referralCode} for 25 bonus coins."
+                            val shareText = "Join me on Fame Maker for trending hashtags, captions & AI bio tools! Use my code ${profile.referralCode} for bonus coins."
                             val intent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_TEXT, shareText)

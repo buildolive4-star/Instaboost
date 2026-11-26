@@ -77,6 +77,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.CatalogService
 import com.example.data.DefaultCatalog
 import com.example.data.FavoritePack
@@ -84,6 +85,7 @@ import com.example.data.OrderRecord
 import com.example.data.ServiceCategoryUi
 import com.example.data.UserProfile
 import com.example.ui.components.CategoryTileCard
+import com.example.ui.components.DynamicPhotoImage
 import com.example.ui.components.GoldFlameCoin
 import com.example.ui.components.HeaderIconButton
 import com.example.ui.theme.PureWhite
@@ -97,6 +99,7 @@ import com.example.ui.theme.TextSecondary
 @Composable
 fun ServicesScreen(
     profile: UserProfile,
+    categories: List<ServiceCategoryUi>,
     services: List<CatalogService>,
     onCategorySelected: (String) -> Unit,
     onOpenAiStudio: () -> Unit,
@@ -106,11 +109,11 @@ fun ServicesScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showAllCategories by remember { mutableStateOf(false) }
 
-    val filteredCategories = remember(searchQuery, showAllCategories) {
+    val filteredCategories = remember(categories, searchQuery, showAllCategories) {
         val base = if (searchQuery.isBlank()) {
-            DefaultCatalog.categories
+            categories
         } else {
-            DefaultCatalog.categories.filter {
+            categories.filter {
                 it.name.contains(searchQuery.trim(), ignoreCase = true) ||
                     it.description.contains(searchQuery.trim(), ignoreCase = true)
             }
@@ -125,18 +128,36 @@ fun ServicesScreen(
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 104.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        // Header matching screenshot ("Services" + Settings icon on right)
+        // Branded Fame Maker Services Header
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Services",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_fame_maker_logo),
+                        contentDescription = "Fame Maker",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(11.dp))
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Fame Maker",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            text = "Services & Packs",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -266,7 +287,7 @@ fun ServicesScreen(
                         }
                     }
 
-                    if (searchQuery.isBlank() && DefaultCatalog.categories.size > 6) {
+                    if (searchQuery.isBlank() && categories.size > 6) {
                         Spacer(modifier = Modifier.height(14.dp))
                         OutlinedButton(
                             onClick = { showAllCategories = !showAllCategories },
@@ -277,7 +298,7 @@ fun ServicesScreen(
                                 .testTag("view_all_categories_btn")
                         ) {
                             Text(
-                                text = if (showAllCategories) "Show Less" else "View All Categories (${DefaultCatalog.categories.size})",
+                                text = if (showAllCategories) "Show Less" else "View All Categories (${categories.size})",
                                 color = RaspberryPrimary,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -339,12 +360,14 @@ fun ServicesScreen(
 @Composable
 fun CategoryDetailsScreen(
     categoryId: String,
+    categories: List<ServiceCategoryUi>,
     services: List<CatalogService>,
     orders: List<OrderRecord>,
     onBack: () -> Unit,
     onServiceSelected: (CatalogService) -> Unit
 ) {
-    val category = DefaultCatalog.categories.firstOrNull { it.id == categoryId }
+    val category = categories.firstOrNull { it.id == categoryId }
+        ?: categories.firstOrNull()
         ?: DefaultCatalog.categories.first()
     var sortOption by remember { mutableStateOf("Popular") }
     val sortOptions = listOf("Popular", "Lowest Price", "Highest Price")
@@ -484,39 +507,65 @@ fun CategoryDetailsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 22.dp, vertical = 20.dp),
+                            .padding(horizontal = 18.dp, vertical = 18.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = service.itemCount.toString(),
-                                    style = MaterialTheme.typography.displaySmall,
-                                    fontWeight = FontWeight.Bold
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (service.photoUrl.isNotBlank()) {
+                                DynamicPhotoImage(
+                                    photoUrl = service.photoUrl,
+                                    contentDescription = service.name,
+                                    modifier = Modifier
+                                        .size(58.dp)
+                                        .clip(RoundedCornerShape(14.dp))
                                 )
-                                if (isUnlocked) {
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFFE3F7EA)
-                                    ) {
-                                        Text(
-                                            text = "Unlocked",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = SuccessGreen,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
+                                Spacer(modifier = Modifier.width(14.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = service.itemCount.toString(),
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (isUnlocked) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFFE3F7EA)
+                                        ) {
+                                            Text(
+                                                text = "Unlocked",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = SuccessGreen,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
                                     }
                                 }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = service.name,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (service.providerName.isNotBlank()) {
+                                    Text(
+                                        text = "Provider: ${service.providerName}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = service.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = TextSecondary
-                            )
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -539,6 +588,7 @@ fun CategoryDetailsScreen(
 @Composable
 fun CreateOrderScreen(
     service: CatalogService,
+    categories: List<ServiceCategoryUi>,
     profile: UserProfile,
     existingOrder: OrderRecord?,
     favorites: List<FavoritePack>,
@@ -552,7 +602,8 @@ fun CreateOrderScreen(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    val category = DefaultCatalog.categories.firstOrNull { it.id == service.categoryId }
+    val category = categories.firstOrNull { it.id == service.categoryId }
+        ?: DefaultCatalog.categories.firstOrNull { it.id == service.categoryId }
         ?: DefaultCatalog.categories.first()
 
     var currentLines by remember(service.id, existingOrder?.id) {
@@ -614,7 +665,17 @@ fun CreateOrderScreen(
                 modifier = Modifier.padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                CategoryThumbnail(category = category, size = 76.dp)
+                if (service.photoUrl.isNotBlank()) {
+                    DynamicPhotoImage(
+                        photoUrl = service.photoUrl,
+                        contentDescription = service.name,
+                        modifier = Modifier
+                            .size(76.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                    )
+                } else {
+                    CategoryThumbnail(category = category, size = 76.dp)
+                }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -623,8 +684,9 @@ fun CreateOrderScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
+                    val providerTag = if (service.providerName.isNotBlank()) " • by ${service.providerName}" else ""
                     Text(
-                        text = "${currentLines.size} items • ${service.categoryName}",
+                        text = "${currentLines.size} items • ${service.categoryName}$providerTag",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -911,24 +973,23 @@ private fun CategoryThumbnail(category: ServiceCategoryUi, size: androidx.compos
             .clip(RoundedCornerShape(18.dp)),
         contentAlignment = Alignment.Center
     ) {
-        if (category.imageRes != null) {
-            Image(
-                painter = painterResource(id = category.imageRes),
-                contentDescription = category.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(listOf(category.gradientStart, category.gradientEnd))
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = category.emoji, fontSize = 30.sp)
+        DynamicPhotoImage(
+            photoUrl = category.photoUrl,
+            contentDescription = category.name,
+            fallbackRes = category.imageRes,
+            modifier = Modifier.fillMaxSize(),
+            fallbackContent = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(listOf(category.gradientStart, category.gradientEnd))
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = category.emoji, fontSize = 30.sp)
+                }
             }
-        }
+        )
     }
 }

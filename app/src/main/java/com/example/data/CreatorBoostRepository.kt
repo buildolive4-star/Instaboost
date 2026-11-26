@@ -207,6 +207,31 @@ class CreatorBoostRepository(
         )
     }
 
+    fun observeActiveCatalogCategories(): Flow<List<CatalogCategory>> = flow {
+        val uid = requireUserId()
+        val path = "catalogCategories"
+        emitAll(
+            db.collection("catalogCategories")
+                .whereEqualTo("active", true)
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(CatalogCategory::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedBy { it.sortOrder }
+                }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val ex = firestoreError ?: (error as? Exception)
+                    if (ex != null && auth.currentUser?.uid == uid) {
+                        handleFirestoreError(ex, OperationType.LIST, path)
+                    }
+                    emit(emptyList())
+                }
+        )
+    }
+
     fun observeActiveCoinPackages(): Flow<List<CoinPackageItem>> = flow {
         val uid = requireUserId()
         val path = "coinPackages"
@@ -311,8 +336,8 @@ class CreatorBoostRepository(
                     notifRef,
                     mapOf(
                         "userId" to uid,
-                        "title" to "Welcome to CreatorBoost!",
-                        "body" to "You received $welcomeCoins welcome bonus coins. Unlock your first hashtag pack today!",
+                        "title" to "Welcome to Fame Maker!",
+                        "body" to "You received $welcomeCoins welcome bonus coins. Unlock your first pack today!",
                         "category" to "REWARD",
                         "read" to false,
                         "createdAt" to FieldValue.serverTimestamp()

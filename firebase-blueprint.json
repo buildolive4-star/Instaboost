@@ -118,11 +118,30 @@
         "coinPrice": { "type": "integer" },
         "trending": { "type": "boolean" },
         "published": { "type": "boolean" },
+        "providerName": { "type": "string", "description": "Editable service provider name." },
+        "photoUrl": { "type": "string", "description": "Editable service photo URL or compressed data URI." },
         "contentLines": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["categoryId", "categoryName", "name", "packType", "itemCount", "coinPrice", "trending", "published", "contentLines", "createdAt", "updatedAt"]
+    },
+    "CatalogCategory": {
+      "title": "CatalogCategory",
+      "description": "Admin-managed service category with editable name, subtitle, description, and photo.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "description": { "type": "string" },
+        "emoji": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "sortOrder": { "type": "integer" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "subtitle", "description", "emoji", "sortOrder", "active", "createdAt", "updatedAt"]
     },
     "CoinPackage": {
       "title": "CoinPackage",
@@ -227,7 +246,11 @@
     },
     "/catalogServices/{serviceId}": {
       "schema": { "$ref": "#/entities/CatalogService" },
-      "description": "Admin-published dynamic creator services."
+      "description": "Admin-published dynamic creator services with editable provider and photo."
+    },
+    "/catalogCategories/{categoryId}": {
+      "schema": { "$ref": "#/entities/CatalogCategory" },
+      "description": "Admin-managed service categories."
     },
     "/coinPackages/{packageId}": {
       "schema": { "$ref": "#/entities/CoinPackage" },

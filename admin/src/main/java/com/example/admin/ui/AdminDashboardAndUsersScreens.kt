@@ -118,7 +118,7 @@ fun AdminOverviewTab(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Live control connected to CreatorBoost User Panel",
+                        text = "Live control connected to Fame Maker User Panel",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.88f)
                     )
@@ -425,7 +425,7 @@ fun AdminUsersTab(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "No users found yet. Users appear automatically once they sign in to CreatorBoost.",
+                        text = "No users found yet. Users appear automatically once they sign in to Fame Maker.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = AdminTextSecondary,
                         modifier = Modifier.padding(18.dp)

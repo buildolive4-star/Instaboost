@@ -66,6 +66,21 @@ data class AdminSupportTicket(
 
 @Keep
 @IgnoreExtraProperties
+data class AdminCatalogCategory(
+    @DocumentId val id: String = "",
+    val name: String = "",
+    val subtitle: String = "",
+    val description: String = "",
+    val emoji: String = "✨",
+    val photoUrl: String = "",
+    val sortOrder: Long = 10L,
+    val active: Boolean = true,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
 data class AdminCatalogService(
     @DocumentId val id: String = "",
     val categoryId: String = "",
@@ -74,6 +89,8 @@ data class AdminCatalogService(
     val packType: String = "HASHTAGS",
     val itemCount: Long = 10L,
     val coinPrice: Long = 5L,
+    val providerName: String = "Fame Maker",
+    val photoUrl: String = "",
     val trending: Boolean = false,
     val published: Boolean = true,
     val contentLines: List<String> = emptyList(),

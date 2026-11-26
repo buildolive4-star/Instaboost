@@ -48,19 +48,19 @@ jobs:
       - name: Prepare cleanly named APK outputs
         run: |
           mkdir -p dist/user dist/admin
-          cp app/build/outputs/apk/debug/app-debug.apk dist/user/CreatorBoost-User-Panel.apk
-          cp admin/build/outputs/apk/debug/admin-debug.apk dist/admin/CreatorBoost-Admin-Panel.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/user/FameMaker-User-Panel.apk
+          cp admin/build/outputs/apk/debug/admin-debug.apk dist/admin/FameMaker-Admin-Panel.apk
 
       - name: Upload User Panel APK (Downloadable)
         uses: actions/upload-artifact@v4
         with:
-          name: CreatorBoost-User-Panel-APK
-          path: dist/user/CreatorBoost-User-Panel.apk
+          name: FameMaker-User-Panel-APK
+          path: dist/user/FameMaker-User-Panel.apk
           retention-days: 30
 
       - name: Upload Admin Panel APK (Downloadable)
         uses: actions/upload-artifact@v4
         with:
-          name: CreatorBoost-Admin-Panel-APK
-          path: dist/admin/CreatorBoost-Admin-Panel.apk
+          name: FameMaker-Admin-Panel-APK
+          path: dist/admin/FameMaker-Admin-Panel.apk
           retention-days: 30

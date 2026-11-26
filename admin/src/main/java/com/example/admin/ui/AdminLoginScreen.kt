@@ -1,6 +1,7 @@
 package com.example.admin.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,10 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
@@ -39,17 +38,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.admin.R
 import com.example.admin.theme.AdminBorder
 import com.example.admin.theme.AdminDanger
 import com.example.admin.theme.AdminDangerBg
 import com.example.admin.theme.AdminPrimary
-import com.example.admin.theme.AdminPrimaryLight
 import com.example.admin.theme.AdminTextSecondary
 
 @Composable
@@ -85,25 +86,19 @@ fun AdminLoginScreen(
                 modifier = Modifier.padding(26.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
+                Image(
+                    painter = painterResource(id = R.drawable.ic_fame_maker_logo),
+                    contentDescription = "Fame Maker Admin",
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(AdminPrimaryLight),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.AdminPanelSettings,
-                        contentDescription = "CreatorBoost Admin",
-                        tint = AdminPrimary,
-                        modifier = Modifier.size(38.dp)
-                    )
-                }
+                        .size(76.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "CreatorBoost Admin",
+                    text = "Fame Maker Admin",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center

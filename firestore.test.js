@@ -306,6 +306,47 @@ test("Main Admin creates staff key, Co-Admin activates & controls user panel, ca
     })
   );
 
+  // Co-Admin creates/edits dynamic category & service with providerName and photoUrl
+  await assertSucceeds(
+    coAdminDb.collection("catalogCategories").doc("reels_boost").set({
+      name: "Reels Boost",
+      subtitle: "Trending Reels Packs",
+      description: "High reach reels growth tags",
+      emoji: "🎬",
+      photoUrl: "https://example.com/reels.jpg",
+      sortOrder: 1,
+      active: true,
+      createdAt: pastDate(1000),
+      updatedAt: pastDate(1000),
+    })
+  );
+  await assertSucceeds(
+    aliceDb.collection("catalogCategories").where("active", "==", true).get()
+  );
+  await assertFails(
+    aliceDb.collection("catalogCategories").doc("reels_boost").update({
+      name: "Hacked",
+      updatedAt: pastDate(500),
+    })
+  );
+  await assertSucceeds(
+    coAdminDb.collection("catalogServices").doc("svc_pro_1").set({
+      categoryId: "reels_boost",
+      categoryName: "Reels Boost",
+      name: "50 Viral Reels Tags",
+      packType: "HASHTAGS",
+      itemCount: 2,
+      coinPrice: 20,
+      trending: true,
+      published: true,
+      providerName: "Fame Maker Pro",
+      photoUrl: "https://example.com/pack.jpg",
+      contentLines: ["#reels", "#viral"],
+      createdAt: pastDate(1000),
+      updatedAt: pastDate(1000),
+    })
+  );
+
   // Co-Admin CANNOT list or create/delete other staff members (Main Admin exclusive!)
   await assertFails(coAdminDb.collection("adminStaff").get());
   await assertFails(

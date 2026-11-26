@@ -134,8 +134,22 @@ service cloud.firestore {
         data.coinPrice is int && data.coinPrice >= 0 && data.coinPrice <= 100000 &&
         data.trending is bool &&
         data.published is bool &&
+        (!('providerName' in data) || (data.providerName is string && data.providerName.size() <= 100)) &&
+        (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 250000)) &&
         data.contentLines is list && data.contentLines.size() >= 1 && data.contentLines.size() <= 60 &&
         data.contentLines[0] is string &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCatalogCategory(data) {
+      return data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
+        data.subtitle is string && data.subtitle.size() <= 100 &&
+        data.description is string && data.description.size() <= 240 &&
+        data.emoji is string && data.emoji.size() <= 16 &&
+        (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 250000)) &&
+        data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 200 &&
+        data.active is bool &&
         data.createdAt is timestamp && data.createdAt <= request.time &&
         data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -400,7 +414,8 @@ service cloud.firestore {
         ]) &&
         incoming().keys().hasOnly([
           'categoryId', 'categoryName', 'name', 'packType', 'itemCount',
-          'coinPrice', 'trending', 'published', 'contentLines', 'createdAt', 'updatedAt'
+          'coinPrice', 'trending', 'published', 'providerName', 'photoUrl',
+          'contentLines', 'createdAt', 'updatedAt'
         ]) &&
         isValidCatalogService(incoming());
 
@@ -411,10 +426,39 @@ service cloud.firestore {
         isAdmin() &&
         incoming().diff(existing()).affectedKeys().hasOnly([
           'categoryId', 'categoryName', 'name', 'packType', 'itemCount',
-          'coinPrice', 'trending', 'published', 'contentLines', 'updatedAt'
+          'coinPrice', 'trending', 'published', 'providerName', 'photoUrl',
+          'contentLines', 'updatedAt'
         ]);
 
       allow delete: if isSignedIn() && isValidId(serviceId) && isAdmin();
+    }
+
+    // --- ADMIN-MANAGED CATEGORIES ---
+    match /catalogCategories/{categoryId} {
+      allow get: if isSignedIn() && isValidId(categoryId) && (existing().active == true || isAdmin());
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(categoryId) &&
+        isAdmin() &&
+        incoming().keys().hasAll([
+          'name', 'subtitle', 'description', 'emoji', 'sortOrder', 'active', 'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'name', 'subtitle', 'description', 'emoji', 'photoUrl', 'sortOrder', 'active', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidCatalogCategory(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(categoryId) &&
+        isValidCatalogCategory(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'subtitle', 'description', 'emoji', 'photoUrl', 'sortOrder', 'active', 'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn() && isValidId(categoryId) && isAdmin();
     }
 
     // --- ADMIN-MANAGED COIN PACKAGES ---

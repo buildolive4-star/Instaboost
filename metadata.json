@@ -1,6 +1,6 @@
 {
-  "name": "CreatorBoost",
-  "description": "Social media creator tools, hashtag and caption packs, coin wallet, daily rewards, spin wheel, leaderboard, and AI content studio.",
+  "name": "Fame Maker",
+  "description": "Social media creator growth platform with dynamic categories, hashtag and caption packs, coin wallet, daily rewards, spin wheel, AI content studio, and standalone Admin Panel.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
