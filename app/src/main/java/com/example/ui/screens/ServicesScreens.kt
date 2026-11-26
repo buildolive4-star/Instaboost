@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,11 +31,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.HeadsetMic
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -78,13 +83,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.data.AppConfig
 import com.example.data.CatalogService
 import com.example.data.DefaultCatalog
 import com.example.data.FavoritePack
 import com.example.data.OrderRecord
 import com.example.data.ServiceCategoryUi
+import com.example.data.ServiceFileItem
 import com.example.data.UserProfile
-import com.example.ui.components.CategoryTileCard
 import com.example.ui.components.DynamicPhotoImage
 import com.example.ui.components.GoldFlameCoin
 import com.example.ui.components.HeaderIconButton
@@ -100,25 +106,30 @@ import com.example.ui.theme.TextSecondary
 fun ServicesScreen(
     profile: UserProfile,
     categories: List<ServiceCategoryUi>,
-    services: List<CatalogService>,
+    serviceFiles: List<ServiceFileItem>,
+    serviceOrdersCount: Int,
+    appConfig: AppConfig,
     onCategorySelected: (String) -> Unit,
+    onOpenServiceOrders: () -> Unit,
+    onOpenAddFunds: () -> Unit,
     onOpenAiStudio: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenWallet: () -> Unit
+    onShowMessage: (String) -> Unit
 ) {
+    val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
-    var showAllCategories by remember { mutableStateOf(false) }
 
-    val filteredCategories = remember(categories, searchQuery, showAllCategories) {
-        val base = if (searchQuery.isBlank()) {
+    val filteredCategories = remember(categories, searchQuery) {
+        if (searchQuery.isBlank()) {
             categories
         } else {
+            val q = searchQuery.trim()
             categories.filter {
-                it.name.contains(searchQuery.trim(), ignoreCase = true) ||
-                    it.description.contains(searchQuery.trim(), ignoreCase = true)
+                it.name.contains(q, ignoreCase = true) ||
+                    it.subtitle.contains(q, ignoreCase = true) ||
+                    it.description.contains(q, ignoreCase = true)
             }
         }
-        if (showAllCategories || searchQuery.isNotBlank()) base else base.take(6)
     }
 
     LazyColumn(
@@ -126,62 +137,49 @@ fun ServicesScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 104.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Branded Fame Maker Services Header
+        // Branded Fame Maker Header + Golden INR Wallet Pill + Settings
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_fame_maker_logo),
-                        contentDescription = "Fame Maker",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(11.dp))
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF111827),
+                    shadowElevation = 3.dp
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_fame_maker_logo),
+                            contentDescription = "Fame Maker",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Fame Maker",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                        Text(
-                            text = "Services & Packs",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFFACC15)
                         )
                     }
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Surface(
-                        onClick = onOpenWallet,
-                        shape = RoundedCornerShape(20.dp),
-                        color = SoftCardBg,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                        modifier = Modifier.testTag("services_coin_pill")
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            GoldFlameCoin(size = 20.dp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = profile.coins.toString(),
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                    InrWalletPill(
+                        balancePaise = profile.walletBalancePaise,
+                        onClick = onOpenAddFunds
+                    )
                     HeaderIconButton(
                         icon = Icons.Filled.Settings,
                         contentDescription = "Settings",
@@ -192,17 +190,111 @@ fun ServicesScreen(
             }
         }
 
+        // Quick Actions Row: My Orders, Add Funds, Optional Support
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    onClick = onOpenServiceOrders,
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("services_my_orders_btn")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Inventory2,
+                            contentDescription = null,
+                            tint = Color(0xFF1D63ED),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "My Orders ($serviceOrdersCount)",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = onOpenAddFunds,
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF1D63ED),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("services_add_funds_btn")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.AddCircleOutline,
+                            contentDescription = null,
+                            tint = PureWhite,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Add Funds",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = PureWhite,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                if (appConfig.supportLink.isNotBlank()) {
+                    Surface(
+                        onClick = {
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(appConfig.supportLink)))
+                            } catch (_: Exception) {
+                                onShowMessage("Unable to open support link.")
+                            }
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF22C55E),
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("services_support_btn")
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Filled.HeadsetMic,
+                                contentDescription = "Support",
+                                tint = PureWhite,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Clean search bar
         item {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search categories (Food, Christmas, Fashion...)", color = TextSecondary) },
+                placeholder = { Text("Search services (Instagram, YouTube...)", color = TextSecondary) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TextSecondary) },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = RaspberryPrimary,
+                    focusedBorderColor = Color(0xFF1D63ED),
                     unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
                     unfocusedContainerColor = SoftCardBg
@@ -213,95 +305,60 @@ fun ServicesScreen(
             )
         }
 
-        // Main Categories Card (Exact faithful layout of uploaded Services screenshot!)
+        // "Our Services" — 2-Column Grid of 1:1 Square Cards (Admin-Controlled ImgBB Images + Name)
         item {
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFFE7F7FC),
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Filled.Tag,
-                                    contentDescription = null,
-                                    tint = Color(0xFF4CC3E0),
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column {
-                            Text(
-                                text = "Categories",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Hashtags, captions & creator packs",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
-                            )
-                        }
-                    }
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Our Services",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = "${filteredCategories.size} categories",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary
+                    )
+                }
 
-                    if (filteredCategories.isEmpty()) {
+                if (filteredCategories.isEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = SoftCardBg,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(
                             text = "No matching categories found.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary,
-                            modifier = Modifier.padding(vertical = 20.dp)
+                            modifier = Modifier.padding(24.dp)
                         )
-                    } else {
-                        val rows = filteredCategories.chunked(3)
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            rows.forEach { rowCats ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    rowCats.forEach { cat ->
-                                        val packCount = services.count { it.categoryId == cat.id }
-                                        CategoryTileCard(
-                                            category = cat,
-                                            packCount = packCount,
-                                            onClick = { onCategorySelected(cat.id) },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    repeat(3 - rowCats.size) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
+                    }
+                } else {
+                    val rows = filteredCategories.chunked(2)
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        rows.forEach { rowCats ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                rowCats.forEach { cat ->
+                                    val fileCount = serviceFiles.count { it.categoryId == cat.id }
+                                    SquareCategoryGridCard(
+                                        category = cat,
+                                        fileCount = fileCount,
+                                        onClick = { onCategorySelected(cat.id) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                if (rowCats.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
                                 }
                             }
-                        }
-                    }
-
-                    if (searchQuery.isBlank() && categories.size > 6) {
-                        Spacer(modifier = Modifier.height(14.dp))
-                        OutlinedButton(
-                            onClick = { showAllCategories = !showAllCategories },
-                            shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("view_all_categories_btn")
-                        ) {
-                            Text(
-                                text = if (showAllCategories) "Show Less" else "View All Categories (${categories.size})",
-                                color = RaspberryPrimary,
-                                fontWeight = FontWeight.SemiBold
-                            )
                         }
                     }
                 }
@@ -351,6 +408,93 @@ fun ServicesScreen(
                             color = Color(0xFF5A2135)
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SquareCategoryGridCard(
+    category: ServiceCategoryUi,
+    fileCount: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.outline),
+        shadowElevation = 3.dp,
+        modifier = modifier
+            .aspectRatio(1f)
+            .testTag("service_category_card_${category.id}")
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            DynamicPhotoImage(
+                photoUrl = category.photoUrl,
+                contentDescription = category.name,
+                fallbackRes = category.imageRes,
+                modifier = Modifier.fillMaxSize(),
+                fallbackContent = {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(category.gradientStart, category.gradientEnd)
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = category.emoji.ifBlank { "✨" },
+                            fontSize = 48.sp,
+                            modifier = Modifier.padding(bottom = 24.dp)
+                        )
+                    }
+                }
+            )
+
+            // Bottom contrast scrim so category name is always ultra-crisp over any ImgBB photo
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(84.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.78f)
+                            )
+                        )
+                    )
+            )
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    text = category.name,
+                    color = PureWhite,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (fileCount > 0) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "$fileCount ${if (fileCount == 1) "service" else "services"}",
+                        color = Color(0xFFFACC15),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }

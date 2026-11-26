@@ -55,6 +55,7 @@ service cloud.firestore {
         (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
         (!('country' in data) || (data.country is string && data.country.size() >= 2 && data.country.size() <= 60)) &&
         data.coins is int && data.coins >= 0 && data.coins <= 10000000 &&
+        (!('walletBalancePaise' in data) || (data.walletBalancePaise is int && data.walletBalancePaise >= 0 && data.walletBalancePaise <= 1000000000)) &&
         data.points is int && data.points >= 0 && data.points <= 10000000 &&
         data.level is int && data.level >= 1 && data.level <= 10 &&
         data.referralCode is string && data.referralCode.size() >= 4 && data.referralCode.size() <= 20 &&
@@ -87,12 +88,12 @@ service cloud.firestore {
 
     function isValidWalletTransaction(data) {
       return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
-        data.txType in ['PURCHASE', 'SPEND', 'BONUS', 'DAILY_REWARD', 'SPIN_REWARD', 'REFERRAL'] &&
+        data.txType in ['PURCHASE', 'SPEND', 'BONUS', 'DAILY_REWARD', 'SPIN_REWARD', 'REFERRAL', 'DEPOSIT', 'SERVICE_ORDER', 'REFUND'] &&
         data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
         (!('description' in data) || (data.description is string && data.description.size() <= 240)) &&
         data.coinDelta is int && data.coinDelta >= -1000000 && data.coinDelta <= 1000000 &&
         data.pointsDelta is int && data.pointsDelta >= -100000 && data.pointsDelta <= 100000 &&
-        data.priceInr is int && data.priceInr >= 0 && data.priceInr <= 500000 &&
+        data.priceInr is int && data.priceInr >= 0 && data.priceInr <= 5000000 &&
         data.status in ['SUCCESSFUL', 'PENDING', 'FAILED', 'REFUNDED'] &&
         data.createdAt is timestamp && data.createdAt <= request.time;
     }
@@ -154,6 +155,74 @@ service cloud.firestore {
         data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
 
+    function isValidServiceFile(data) {
+      return data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 80 &&
+        data.categoryName is string && data.categoryName.size() >= 1 && data.categoryName.size() <= 80 &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
+        data.subtitle is string && data.subtitle.size() <= 160 &&
+        data.emoji is string && data.emoji.size() <= 16 &&
+        (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 2048)) &&
+        data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 500 &&
+        data.active is bool &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidServicePlan(data) {
+      return data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 80 &&
+        data.categoryName is string && data.categoryName.size() >= 1 && data.categoryName.size() <= 80 &&
+        data.fileId is string && data.fileId.size() >= 1 && data.fileId.size() <= 80 &&
+        data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 100 &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
+        data.description is string && data.description.size() <= 300 &&
+        (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 2048)) &&
+        data.pricePer1kPaise is int && data.pricePer1kPaise >= 1 && data.pricePer1kPaise <= 100000000 &&
+        data.minQty is int && data.minQty >= 1 && data.minQty <= 10000000 &&
+        data.maxQty is int && data.maxQty >= data.minQty && data.maxQty <= 100000000 &&
+        data.inputHint is string && data.inputHint.size() >= 2 && data.inputHint.size() <= 120 &&
+        data.presetTiers is list && data.presetTiers.size() <= 12 &&
+        (data.presetTiers.size() == 0 || data.presetTiers[0] is string) &&
+        data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 500 &&
+        data.active is bool &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidServiceOrder(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 80 &&
+        (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 120)) &&
+        data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 80 &&
+        data.categoryName is string && data.categoryName.size() >= 1 && data.categoryName.size() <= 80 &&
+        data.fileId is string && data.fileId.size() >= 1 && data.fileId.size() <= 80 &&
+        data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 100 &&
+        data.planId is string && data.planId.size() >= 1 && data.planId.size() <= 80 &&
+        data.planName is string && data.planName.size() >= 2 && data.planName.size() <= 120 &&
+        data.targetLink is string && data.targetLink.size() >= 2 && data.targetLink.size() <= 400 &&
+        data.quantity is int && data.quantity >= 1 && data.quantity <= 100000000 &&
+        data.totalPricePaise is int && data.totalPricePaise >= 1 && data.totalPricePaise <= 1000000000 &&
+        data.paymentMethod in ['WALLET', 'UPI_DIRECT'] &&
+        (!('utrNumber' in data) || (data.utrNumber is string && data.utrNumber.size() <= 40)) &&
+        (!('paymentProofUrl' in data) || (data.paymentProofUrl is string && data.paymentProofUrl.size() <= 2048)) &&
+        data.status in ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] &&
+        (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 300)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidFundRequest(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 80 &&
+        (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 120)) &&
+        data.amountPaise is int && data.amountPaise >= 100 && data.amountPaise <= 100000000 &&
+        data.utrNumber is string && data.utrNumber.size() >= 6 && data.utrNumber.size() <= 40 &&
+        (!('proofImageUrl' in data) || (data.proofImageUrl is string && data.proofImageUrl.size() <= 2048)) &&
+        data.status in ['PENDING', 'APPROVED', 'REJECTED'] &&
+        (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 300)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
     function isValidCoinPackage(data) {
       return data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
         data.coins is int && data.coins >= 10 && data.coins <= 1000000 &&
@@ -176,6 +245,12 @@ service cloud.firestore {
         data.referralBonusCoins is int && data.referralBonusCoins >= 0 && data.referralBonusCoins <= 100000 &&
         data.spinEnabled is bool &&
         data.dailyRewardsEnabled is bool &&
+        (!('upiId' in data) || (data.upiId is string && data.upiId.size() <= 100)) &&
+        (!('upiMerchantName' in data) || (data.upiMerchantName is string && data.upiMerchantName.size() <= 100)) &&
+        (!('paymentQrUrl' in data) || (data.paymentQrUrl is string && data.paymentQrUrl.size() <= 2048)) &&
+        (!('paymentInstructions' in data) || (data.paymentInstructions is string && data.paymentInstructions.size() <= 500)) &&
+        (!('minDepositInr' in data) || (data.minDepositInr is int && data.minDepositInr >= 1 && data.minDepositInr <= 100000)) &&
+        (!('supportLink' in data) || (data.supportLink is string && data.supportLink.size() <= 300)) &&
         data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
 
@@ -214,14 +289,16 @@ service cloud.firestore {
         isOwner(userId) &&
         incoming().userId == request.auth.uid &&
         !('blocked' in incoming()) &&
+        (!('walletBalancePaise' in incoming()) || incoming().walletBalancePaise == 0) &&
         incoming().keys().hasAll([
           'userId', 'displayName', 'coins', 'points', 'level', 'referralCode',
           'dailyStreak', 'spinsToday', 'mascotEnabled', 'darkMode', 'createdAt', 'updatedAt'
         ]) &&
         incoming().keys().hasOnly([
-          'userId', 'displayName', 'email', 'country', 'coins', 'points', 'level',
-          'referralCode', 'referredBy', 'dailyStreak', 'lastDailyClaimDay',
-          'lastSpinDay', 'spinsToday', 'mascotEnabled', 'darkMode', 'createdAt', 'updatedAt'
+          'userId', 'displayName', 'email', 'country', 'coins', 'walletBalancePaise',
+          'points', 'level', 'referralCode', 'referredBy', 'dailyStreak',
+          'lastDailyClaimDay', 'lastSpinDay', 'spinsToday', 'mascotEnabled',
+          'darkMode', 'createdAt', 'updatedAt'
         ]) &&
         isValidUserProfile(incoming());
 
@@ -234,8 +311,8 @@ service cloud.firestore {
           (
             isAdmin() &&
             incoming().diff(existing()).affectedKeys().hasOnly([
-              'displayName', 'country', 'coins', 'points', 'level', 'dailyStreak',
-              'spinsToday', 'mascotEnabled', 'darkMode', 'blocked', 'updatedAt'
+              'displayName', 'country', 'coins', 'walletBalancePaise', 'points', 'level',
+              'dailyStreak', 'spinsToday', 'mascotEnabled', 'darkMode', 'blocked', 'updatedAt'
             ])
           ) ||
           (
@@ -244,15 +321,21 @@ service cloud.firestore {
             (
               // Action 1: Profile & preferences edit
               incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'country', 'mascotEnabled', 'darkMode', 'referredBy', 'updatedAt']) ||
-              // Action 2: Wallet, points, level, daily streak, or spin update
-              incoming().diff(existing()).affectedKeys().hasOnly(['coins', 'points', 'level', 'dailyStreak', 'lastDailyClaimDay', 'lastSpinDay', 'spinsToday', 'updatedAt'])
+              // Action 2: Coins, points, level, daily streak, or spin update
+              incoming().diff(existing()).affectedKeys().hasOnly(['coins', 'points', 'level', 'dailyStreak', 'lastDailyClaimDay', 'lastSpinDay', 'spinsToday', 'updatedAt']) ||
+              // Action 3: Spend INR wallet balance on a service order (strictly decreasing; cannot self-credit)
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly(['walletBalancePaise', 'updatedAt']) &&
+                ('walletBalancePaise' in existing()) &&
+                incoming().walletBalancePaise < existing().walletBalancePaise
+              )
             )
           )
         );
 
       allow delete: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
 
-      // Orders subcollection
+      // Orders subcollection (legacy creator packs)
       match /orders/{orderId} {
         allow get: if isSignedIn() && isValidId(userId) && isValidId(orderId) && (isOwner(userId) || isAdmin());
         allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
@@ -400,7 +483,7 @@ service cloud.firestore {
       }
     }
 
-    // --- ADMIN-MANAGED CATALOG SERVICES ---
+    // --- ADMIN-MANAGED CATALOG SERVICES (LEGACY CONTENT PACKS) ---
     match /catalogServices/{serviceId} {
       allow get: if isSignedIn() && isValidId(serviceId) && (existing().published == true || isAdmin());
       allow list: if isSignedIn() && (existing().published == true || isAdmin());
@@ -433,7 +516,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isValidId(serviceId) && isAdmin();
     }
 
-    // --- ADMIN-MANAGED CATEGORIES ---
+    // --- ADMIN-MANAGED CATEGORIES (1:1 SQUARE GRID) ---
     match /catalogCategories/{categoryId} {
       allow get: if isSignedIn() && isValidId(categoryId) && (existing().active == true || isAdmin());
       allow list: if isSignedIn() && (existing().active == true || isAdmin());
@@ -459,6 +542,130 @@ service cloud.firestore {
         ]);
 
       allow delete: if isSignedIn() && isValidId(categoryId) && isAdmin();
+    }
+
+    // --- ADMIN-MANAGED CUSTOM SERVICE FILES (SUB-CATEGORIES) ---
+    match /serviceFiles/{fileId} {
+      allow get: if isSignedIn() && isValidId(fileId) && (existing().active == true || isAdmin());
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(fileId) &&
+        isAdmin() &&
+        incoming().keys().hasAll([
+          'categoryId', 'categoryName', 'name', 'subtitle', 'emoji', 'sortOrder', 'active', 'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'categoryId', 'categoryName', 'name', 'subtitle', 'emoji', 'photoUrl', 'sortOrder', 'active', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidServiceFile(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(fileId) &&
+        isValidServiceFile(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'categoryId', 'categoryName', 'name', 'subtitle', 'emoji', 'photoUrl', 'sortOrder', 'active', 'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn() && isValidId(fileId) && isAdmin();
+    }
+
+    // --- ADMIN-MANAGED SERVICE PLANS (INSIDE EACH FILE) ---
+    match /servicePlans/{planId} {
+      allow get: if isSignedIn() && isValidId(planId) && (existing().active == true || isAdmin());
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(planId) &&
+        isAdmin() &&
+        incoming().keys().hasAll([
+          'categoryId', 'categoryName', 'fileId', 'fileName', 'name', 'description',
+          'pricePer1kPaise', 'minQty', 'maxQty', 'inputHint', 'presetTiers',
+          'sortOrder', 'active', 'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'categoryId', 'categoryName', 'fileId', 'fileName', 'name', 'description',
+          'photoUrl', 'pricePer1kPaise', 'minQty', 'maxQty', 'inputHint', 'presetTiers',
+          'sortOrder', 'active', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidServicePlan(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(planId) &&
+        isValidServicePlan(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'categoryId', 'categoryName', 'fileId', 'fileName', 'name', 'description',
+          'photoUrl', 'pricePer1kPaise', 'minQty', 'maxQty', 'inputHint', 'presetTiers',
+          'sortOrder', 'active', 'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn() && isValidId(planId) && isAdmin();
+    }
+
+    // --- USER SERVICE ORDERS (MANAGED BY ADMIN & CO-ADMIN) ---
+    match /serviceOrders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(orderId) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'PENDING' &&
+        !('adminNote' in incoming()) &&
+        incoming().keys().hasAll([
+          'userId', 'userName', 'categoryId', 'categoryName', 'fileId', 'fileName',
+          'planId', 'planName', 'targetLink', 'quantity', 'totalPricePaise',
+          'paymentMethod', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'userId', 'userName', 'userEmail', 'categoryId', 'categoryName', 'fileId', 'fileName',
+          'planId', 'planName', 'targetLink', 'quantity', 'totalPricePaise',
+          'paymentMethod', 'utrNumber', 'paymentProofUrl', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidServiceOrder(incoming());
+
+      allow update: if isAdmin() &&
+        isValidId(orderId) &&
+        isValidServiceOrder(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    // --- USER INR FUND / DEPOSIT REQUESTS (APPROVED BY ADMIN & CO-ADMIN) ---
+    match /fundRequests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(requestId) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'PENDING' &&
+        !('adminNote' in incoming()) &&
+        incoming().keys().hasAll([
+          'userId', 'userName', 'amountPaise', 'utrNumber', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'userId', 'userName', 'userEmail', 'amountPaise', 'utrNumber',
+          'proofImageUrl', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidFundRequest(incoming());
+
+      allow update: if isAdmin() &&
+        isValidId(requestId) &&
+        isValidFundRequest(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().amountPaise == existing().amountPaise &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(requestId);
     }
 
     // --- ADMIN-MANAGED COIN PACKAGES ---
@@ -489,7 +696,7 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isValidId(packageId) && isAdmin();
     }
 
-    // --- GLOBAL REAL-TIME APP CONFIG ---
+    // --- GLOBAL REAL-TIME APP CONFIG & UPI PAYMENT SETTINGS ---
     match /appConfig/{configId} {
       allow get: if isSignedIn() && isValidId(configId);
       allow list: if isAdmin();
@@ -502,7 +709,9 @@ service cloud.firestore {
         ]) &&
         incoming().keys().hasOnly([
           'maintenanceMode', 'maintenanceMessage', 'announcementTitle', 'announcementBody',
-          'welcomeCoins', 'referralBonusCoins', 'spinEnabled', 'dailyRewardsEnabled', 'updatedAt'
+          'welcomeCoins', 'referralBonusCoins', 'spinEnabled', 'dailyRewardsEnabled',
+          'upiId', 'upiMerchantName', 'paymentQrUrl', 'paymentInstructions',
+          'minDepositInr', 'supportLink', 'updatedAt'
         ]) &&
         isValidAppConfig(incoming());
 
@@ -511,7 +720,9 @@ service cloud.firestore {
         isValidAppConfig(incoming()) &&
         incoming().diff(existing()).affectedKeys().hasOnly([
           'maintenanceMode', 'maintenanceMessage', 'announcementTitle', 'announcementBody',
-          'welcomeCoins', 'referralBonusCoins', 'spinEnabled', 'dailyRewardsEnabled', 'updatedAt'
+          'welcomeCoins', 'referralBonusCoins', 'spinEnabled', 'dailyRewardsEnabled',
+          'upiId', 'upiMerchantName', 'paymentQrUrl', 'paymentInstructions',
+          'minDepositInr', 'supportLink', 'updatedAt'
         ]);
 
       allow delete: if false;
@@ -519,7 +730,6 @@ service cloud.firestore {
 
     // --- ADMIN STAFF CREDENTIALS (MAIN ADMIN ONLY FOR MANAGEMENT) ---
     match /adminStaff/{staffKey} {
-      // Point lookup only by exact 128-bit cryptographic hash; listing restricted strictly to Main Admin
       allow get: if isSignedIn() && isValidId(staffKey);
       allow list: if isMainAdmin();
 

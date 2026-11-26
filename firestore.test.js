@@ -362,3 +362,249 @@ test("Main Admin creates staff key, Co-Admin activates & controls user panel, ca
   await assertSucceeds(mainAdminDb.collection("adminStaff").doc(VALID_STAFF_KEY).delete());
   await assertFails(coAdminDb.collection("users").get());
 });
+
+test("ServiceFiles, ServicePlans, ServiceOrders, FundRequests, and zero-trust INR walletBalancePaise", async () => {
+  const mainAdminDb = testEnv.authenticatedContext(ADMIN_UID, {
+    email: "buildolive4@gmail.com",
+    email_verified: true,
+  }).firestore();
+  const coAdminDb = testEnv.authenticatedContext(COADMIN_UID, {
+    email: "helper@example.com",
+    email_verified: true,
+  }).firestore();
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const now = pastDate(3000);
+
+  // Setup Co-Admin grant
+  await assertSucceeds(
+    mainAdminDb.collection("adminStaff").doc(VALID_STAFF_KEY).set({
+      staffName: "CoAdminOps",
+      active: true,
+      linkedUid: "",
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+  await assertSucceeds(
+    coAdminDb.collection("admins").doc(COADMIN_UID).set({
+      userId: COADMIN_UID,
+      staffKey: VALID_STAFF_KEY,
+      displayName: "CoAdminOps",
+      active: true,
+      createdAt: pastDate(2000),
+    })
+  );
+
+  // User cannot create account with non-zero walletBalancePaise
+  await assertFails(
+    aliceDb.collection("users").doc(ALICE_UID).set({
+      userId: ALICE_UID,
+      displayName: "Alice",
+      coins: 15,
+      walletBalancePaise: 50000,
+      points: 0,
+      level: 1,
+      referralCode: "CBALICE1",
+      dailyStreak: 0,
+      spinsToday: 0,
+      mascotEnabled: true,
+      darkMode: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // Valid user profile with 0 paise balance
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).set({
+      userId: ALICE_UID,
+      displayName: "Alice",
+      email: "alice@example.com",
+      country: "India",
+      coins: 15,
+      walletBalancePaise: 0,
+      points: 0,
+      level: 1,
+      referralCode: "CBALICE1",
+      dailyStreak: 0,
+      spinsToday: 0,
+      mascotEnabled: true,
+      darkMode: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // User cannot self-credit INR wallet balance
+  await assertFails(
+    aliceDb.collection("users").doc(ALICE_UID).update({
+      walletBalancePaise: 10000,
+      updatedAt: pastDate(1500),
+    })
+  );
+
+  // Co-Admin creates ServiceFile, ServicePlan, and UPI AppConfig
+  await assertSucceeds(
+    coAdminDb.collection("serviceFiles").doc("ig_reel_views").set({
+      categoryId: "instagram",
+      categoryName: "Instagram",
+      name: "Instagram Reel Views",
+      subtitle: "Superfast real dashboard views",
+      emoji: "🎬",
+      photoUrl: "https://i.ibb.co/example/reel.jpg",
+      sortOrder: 1,
+      active: true,
+      createdAt: pastDate(1800),
+      updatedAt: pastDate(1800),
+    })
+  );
+  await assertSucceeds(
+    coAdminDb.collection("servicePlans").doc("plan_reel_superfast").set({
+      categoryId: "instagram",
+      categoryName: "Instagram",
+      fileId: "ig_reel_views",
+      fileName: "Instagram Reel Views",
+      name: "IG Reel Views - Superfast ⚡",
+      description: "Instant start with dashboard insights",
+      photoUrl: "https://i.ibb.co/example/plan.jpg",
+      pricePer1kPaise: 100,
+      minQty: 100,
+      maxQty: 100000,
+      inputHint: "Enter Instagram Reel link",
+      presetTiers: ["100:0", "500:0", "1000:0", "2000:5", "5000:6"],
+      sortOrder: 1,
+      active: true,
+      createdAt: pastDate(1800),
+      updatedAt: pastDate(1800),
+    })
+  );
+  await assertSucceeds(
+    coAdminDb.collection("appConfig").doc("global").set({
+      maintenanceMode: false,
+      maintenanceMessage: "",
+      announcementTitle: "UPI Instant Deposit",
+      announcementBody: "Add funds via UPI QR and start growing!",
+      welcomeCoins: 15,
+      referralBonusCoins: 25,
+      spinEnabled: true,
+      dailyRewardsEnabled: true,
+      upiId: "famemaker@upi",
+      upiMerchantName: "Fame Maker",
+      paymentQrUrl: "https://i.ibb.co/example/qr.jpg",
+      paymentInstructions: "Scan QR, pay, and submit 12-digit UTR.",
+      minDepositInr: 10,
+      supportLink: "https://t.me/famemakersupport",
+      updatedAt: pastDate(1700),
+    })
+  );
+
+  // User reads active files & plans, cannot mutate them
+  await assertSucceeds(aliceDb.collection("serviceFiles").where("active", "==", true).get());
+  await assertSucceeds(aliceDb.collection("servicePlans").where("active", "==", true).get());
+  await assertFails(
+    aliceDb.collection("servicePlans").doc("plan_reel_superfast").update({
+      pricePer1kPaise: 1,
+      updatedAt: pastDate(500),
+    })
+  );
+
+  // Alice submits a FundRequest (PENDING only)
+  await assertFails(
+    aliceDb.collection("fundRequests").doc("fr_bad").set({
+      userId: ALICE_UID,
+      userName: "Alice",
+      amountPaise: 10000,
+      utrNumber: "412345678901",
+      status: "APPROVED",
+      createdAt: pastDate(1500),
+      updatedAt: pastDate(1500),
+    })
+  );
+  await assertSucceeds(
+    aliceDb.collection("fundRequests").doc("fr_1").set({
+      userId: ALICE_UID,
+      userName: "Alice",
+      userEmail: "alice@example.com",
+      amountPaise: 10000,
+      utrNumber: "412345678901",
+      proofImageUrl: "https://i.ibb.co/example/proof.jpg",
+      status: "PENDING",
+      createdAt: pastDate(1500),
+      updatedAt: pastDate(1500),
+    })
+  );
+  // Bob cannot read Alice's fund request
+  await assertFails(bobDb.collection("fundRequests").doc("fr_1").get());
+  // Alice cannot self-approve
+  await assertFails(
+    aliceDb.collection("fundRequests").doc("fr_1").update({
+      status: "APPROVED",
+      updatedAt: pastDate(1200),
+    })
+  );
+
+  // Co-Admin approves fund request and credits Alice's walletBalancePaise
+  await assertSucceeds(
+    coAdminDb.collection("fundRequests").doc("fr_1").update({
+      status: "APPROVED",
+      adminNote: "Verified UTR",
+      updatedAt: pastDate(1200),
+    })
+  );
+  await assertSucceeds(
+    coAdminDb.collection("users").doc(ALICE_UID).update({
+      walletBalancePaise: 10000,
+      updatedAt: pastDate(1200),
+    })
+  );
+
+  // Alice spends ₹1.90 (190 paise) from wallet to place a ServiceOrder
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).update({
+      walletBalancePaise: 9810,
+      updatedAt: pastDate(1000),
+    })
+  );
+  await assertSucceeds(
+    aliceDb.collection("serviceOrders").doc("so_1").set({
+      userId: ALICE_UID,
+      userName: "Alice",
+      userEmail: "alice@example.com",
+      categoryId: "instagram",
+      categoryName: "Instagram",
+      fileId: "ig_reel_views",
+      fileName: "Instagram Reel Views",
+      planId: "plan_reel_superfast",
+      planName: "IG Reel Views - Superfast ⚡",
+      targetLink: "https://instagram.com/reel/xyz123",
+      quantity: 2000,
+      totalPricePaise: 190,
+      paymentMethod: "WALLET",
+      status: "PENDING",
+      createdAt: pastDate(1000),
+      updatedAt: pastDate(1000),
+    })
+  );
+  // Alice can list her own orders, Bob cannot
+  await assertSucceeds(
+    aliceDb.collection("serviceOrders").where("userId", "==", ALICE_UID).get()
+  );
+  await assertFails(bobDb.collection("serviceOrders").doc("so_1").get());
+  // Alice cannot self-complete her order
+  await assertFails(
+    aliceDb.collection("serviceOrders").doc("so_1").update({
+      status: "COMPLETED",
+      updatedAt: pastDate(500),
+    })
+  );
+  // Co-Admin updates order status to IN_PROGRESS and COMPLETED
+  await assertSucceeds(
+    coAdminDb.collection("serviceOrders").doc("so_1").update({
+      status: "COMPLETED",
+      adminNote: "Delivered 2000 views",
+      updatedAt: pastDate(500),
+    })
+  );
+});
+

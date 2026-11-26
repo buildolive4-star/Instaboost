@@ -63,9 +63,13 @@ import com.example.admin.data.AdminAppConfig
 import com.example.admin.data.AdminAuditLog
 import com.example.admin.data.AdminCatalogService
 import com.example.admin.data.AdminCoinPackage
+import com.example.admin.data.AdminFundRequest
 import com.example.admin.data.AdminOrderRecord
+import com.example.admin.data.AdminServiceOrder
+import com.example.admin.data.AdminServicePlan
 import com.example.admin.data.AdminSupportTicket
 import com.example.admin.data.AdminUserProfile
+import com.example.admin.data.formatInrFromPaise
 import com.example.admin.theme.AdminBlue
 import com.example.admin.theme.AdminBlueBg
 import com.example.admin.theme.AdminBorder
@@ -81,21 +85,27 @@ import com.example.admin.theme.AdminTextSecondary
 import com.example.admin.theme.AdminWarmCard
 import java.text.NumberFormat
 import java.util.Locale
+import kotlin.math.roundToLong
 
 @Composable
 fun AdminOverviewTab(
     adminName: String,
     users: List<AdminUserProfile>,
-    services: List<AdminCatalogService>,
-    packages: List<AdminCoinPackage>,
+    serviceOrders: List<AdminServiceOrder>,
+    fundRequests: List<AdminFundRequest>,
+    servicePlans: List<AdminServicePlan>,
     appConfig: AdminAppConfig,
     auditLogs: List<AdminAuditLog>,
     onToggleMaintenance: (Boolean) -> Unit,
+    onOpenOrders: () -> Unit,
     onOpenUsers: () -> Unit,
+    onOpenCatalog: () -> Unit,
     onOpenControl: () -> Unit
 ) {
     val formatter = NumberFormat.getIntegerInstance(Locale.US)
-    val totalCoins = users.sumOf { it.coins }
+    val totalWalletPaise = users.sumOf { it.walletBalancePaise }
+    val pendingOrders = serviceOrders.count { it.status == "PENDING" }
+    val pendingDeposits = fundRequests.count { it.status == "PENDING" }
     val blockedCount = users.count { it.blocked }
 
     LazyColumn(
@@ -118,7 +128,7 @@ fun AdminOverviewTab(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Live control connected to Fame Maker User Panel",
+                        text = "Full live control over categories, service files, plans, orders & payments",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.88f)
                     )
@@ -127,6 +137,34 @@ fun AdminOverviewTab(
         }
 
         // KPI 2x2 Grid
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                KpiMetricCard(
+                    title = "Service Orders",
+                    value = serviceOrders.size.toString(),
+                    subtitle = if (pendingOrders > 0) "$pendingOrders pending" else "All processed",
+                    icon = Icons.Filled.Inventory2,
+                    iconTint = AdminPrimary,
+                    iconBg = AdminPrimaryLight,
+                    onClick = onOpenOrders,
+                    modifier = Modifier.weight(1f)
+                )
+                KpiMetricCard(
+                    title = "UPI Deposits",
+                    value = pendingDeposits.toString(),
+                    subtitle = "${fundRequests.size} total requests",
+                    icon = Icons.Filled.AccountBalanceWallet,
+                    iconTint = AdminGreen,
+                    iconBg = AdminGreenBg,
+                    onClick = onOpenOrders,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -143,41 +181,13 @@ fun AdminOverviewTab(
                     modifier = Modifier.weight(1f)
                 )
                 KpiMetricCard(
-                    title = "Coins Balance",
-                    value = formatter.format(totalCoins),
-                    subtitle = "Across all wallets",
+                    title = "User Wallets",
+                    value = formatInrFromPaise(totalWalletPaise),
+                    subtitle = "${servicePlans.count { it.active }} active plans",
                     icon = Icons.Filled.MonetizationOn,
                     iconTint = Color(0xFFD97706),
                     iconBg = AdminGoldBg,
-                    onClick = onOpenUsers,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                KpiMetricCard(
-                    title = "Live Services",
-                    value = services.count { it.published }.toString(),
-                    subtitle = "${services.size} total packs",
-                    icon = Icons.Filled.Inventory2,
-                    iconTint = AdminPrimary,
-                    iconBg = AdminPrimaryLight,
-                    onClick = {},
-                    modifier = Modifier.weight(1f)
-                )
-                KpiMetricCard(
-                    title = "Coin Packs",
-                    value = packages.count { it.active }.toString(),
-                    subtitle = "${packages.size} configured",
-                    icon = Icons.Filled.AccountBalanceWallet,
-                    iconTint = AdminGreen,
-                    iconBg = AdminGreenBg,
-                    onClick = {},
+                    onClick = onOpenCatalog,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -363,7 +373,7 @@ fun AdminUsersTab(
     selectedUserTickets: List<AdminSupportTicket>,
     busy: Boolean,
     onSelectUser: (String?) -> Unit,
-    onUpdateUser: (AdminUserProfile, Long, Long, Long, Boolean, String) -> Unit,
+    onUpdateUser: (AdminUserProfile, Long, Long, Long, Long, Boolean, String) -> Unit,
     onUpdateOrderStatus: (String, String, String) -> Unit,
     onUpdateTicketStatus: (String, String, String) -> Unit,
     onSendNotification: (String, String, String, () -> Unit) -> Unit
@@ -499,7 +509,7 @@ fun AdminUsersTab(
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "${formatter.format(user.coins)} coins • ${user.points} pts • Lvl ${user.level}",
+                                    text = "${formatInrFromPaise(user.walletBalancePaise)} • ${formatter.format(user.coins)} coins • Lvl ${user.level}",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = AdminPrimary,
                                     fontWeight = FontWeight.SemiBold
@@ -525,11 +535,14 @@ private fun AdminUserDetailView(
     tickets: List<AdminSupportTicket>,
     busy: Boolean,
     onBack: () -> Unit,
-    onSave: (AdminUserProfile, Long, Long, Long, Boolean, String) -> Unit,
+    onSave: (AdminUserProfile, Long, Long, Long, Long, Boolean, String) -> Unit,
     onUpdateOrderStatus: (String, String, String) -> Unit,
     onUpdateTicketStatus: (String, String, String) -> Unit,
     onSendNotification: (String, String, String, () -> Unit) -> Unit
 ) {
+    var walletInrText by remember(user.userId, user.walletBalancePaise) {
+        mutableStateOf(String.format(Locale.US, "%.2f", user.walletBalancePaise / 100.0))
+    }
     var coinsText by remember(user.userId, user.coins) { mutableStateOf(user.coins.toString()) }
     var pointsText by remember(user.userId, user.points) { mutableStateOf(user.points.toString()) }
     var levelText by remember(user.userId, user.level) { mutableStateOf(user.level.toString()) }
@@ -565,20 +578,32 @@ private fun AdminUserDetailView(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Wallet & Account Controls", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("INR Wallet & Account Controls", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(100L to "+100", 500L to "+500", 1000L to "+1K", -100L to "-100").forEach { (delta, label) ->
+                        listOf(50.0 to "+₹50", 100.0 to "+₹100", 500.0 to "+₹500", -50.0 to "-₹50").forEach { (delta, label) ->
                             FilterChip(
                                 selected = false,
                                 onClick = {
-                                    val cur = coinsText.toLongOrNull() ?: user.coins
-                                    coinsText = (cur + delta).coerceAtLeast(0L).toString()
+                                    val cur = walletInrText.toDoubleOrNull() ?: (user.walletBalancePaise / 100.0)
+                                    val next = (cur + delta).coerceAtLeast(0.0)
+                                    walletInrText = String.format(Locale.US, "%.2f", next)
                                 },
                                 label = { Text(label, fontWeight = FontWeight.SemiBold) }
                             )
                         }
                     }
+
+                    OutlinedTextField(
+                        value = walletInrText,
+                        onValueChange = { walletInrText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                        label = { Text("INR Wallet Balance (₹)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("user_wallet_inr_input")
+                    )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedTextField(
@@ -634,9 +659,13 @@ private fun AdminUserDetailView(
 
                     Button(
                         onClick = {
+                            val paise = ((walletInrText.toDoubleOrNull() ?: (user.walletBalancePaise / 100.0)) * 100.0)
+                                .roundToLong()
+                                .coerceAtLeast(0L)
                             onSave(
                                 user,
                                 coinsText.toLongOrNull() ?: user.coins,
+                                paise,
                                 pointsText.toLongOrNull() ?: user.points,
                                 (levelText.toLongOrNull() ?: user.level).coerceIn(1L, 10L),
                                 blocked,

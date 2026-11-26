@@ -5,6 +5,21 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.IgnoreExtraProperties
 import com.google.firebase.firestore.ServerTimestamp
+import java.util.Locale
+
+fun formatInrFromPaise(paise: Long): String {
+    val safe = paise.coerceAtLeast(0L)
+    val rupees = safe / 100L
+    val rem = safe % 100L
+    return String.format(Locale.US, "₹%,d.%02d", rupees, rem)
+}
+
+fun formatRatePer1k(paise: Long): String {
+    val safe = paise.coerceAtLeast(0L)
+    val rupees = safe / 100L
+    val rem = safe % 100L
+    return String.format(Locale.US, "₹%d.%02d/k", rupees, rem)
+}
 
 data class AdminSession(
     val uid: String,
@@ -22,6 +37,7 @@ data class AdminUserProfile(
     val email: String = "",
     val country: String = "India",
     val coins: Long = 0L,
+    val walletBalancePaise: Long = 0L,
     val points: Long = 0L,
     val level: Long = 1L,
     val referralCode: String = "",
@@ -81,6 +97,85 @@ data class AdminCatalogCategory(
 
 @Keep
 @IgnoreExtraProperties
+data class AdminServiceFile(
+    @DocumentId val id: String = "",
+    val categoryId: String = "",
+    val categoryName: String = "",
+    val name: String = "",
+    val subtitle: String = "",
+    val emoji: String = "⚡",
+    val photoUrl: String = "",
+    val sortOrder: Long = 10L,
+    val active: Boolean = true,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class AdminServicePlan(
+    @DocumentId val id: String = "",
+    val categoryId: String = "",
+    val categoryName: String = "",
+    val fileId: String = "",
+    val fileName: String = "",
+    val name: String = "",
+    val description: String = "",
+    val photoUrl: String = "",
+    val pricePer1kPaise: Long = 100L,
+    val minQty: Long = 50L,
+    val maxQty: Long = 100_000L,
+    val inputHint: String = "Enter profile or post link",
+    val presetTiers: List<String> = listOf("100:0", "500:0", "1000:0", "2000:5", "5000:6", "10000:9"),
+    val sortOrder: Long = 10L,
+    val active: Boolean = true,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class AdminServiceOrder(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val userName: String = "",
+    val userEmail: String = "",
+    val categoryId: String = "",
+    val categoryName: String = "",
+    val fileId: String = "",
+    val fileName: String = "",
+    val planId: String = "",
+    val planName: String = "",
+    val targetLink: String = "",
+    val quantity: Long = 0L,
+    val totalPricePaise: Long = 0L,
+    val paymentMethod: String = "WALLET",
+    val utrNumber: String = "",
+    val paymentProofUrl: String = "",
+    val status: String = "PENDING",
+    val adminNote: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class AdminFundRequest(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val userName: String = "",
+    val userEmail: String = "",
+    val amountPaise: Long = 0L,
+    val utrNumber: String = "",
+    val proofImageUrl: String = "",
+    val status: String = "PENDING",
+    val adminNote: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
 data class AdminCatalogService(
     @DocumentId val id: String = "",
     val categoryId: String = "",
@@ -126,6 +221,12 @@ data class AdminAppConfig(
     val referralBonusCoins: Long = 25L,
     val spinEnabled: Boolean = true,
     val dailyRewardsEnabled: Boolean = true,
+    val upiId: String = "",
+    val upiMerchantName: String = "Fame Maker",
+    val paymentQrUrl: String = "",
+    val paymentInstructions: String = "Scan the UPI QR code or copy UPI ID, complete payment, and submit the 12-digit UTR number.",
+    val minDepositInr: Long = 10L,
+    val supportLink: String = "",
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
 

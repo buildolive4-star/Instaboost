@@ -2,7 +2,7 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Authenticated user account, coin balance, points, level, streak, suspension flag, and preferences.",
+      "description": "Authenticated user account, coin balance, INR wallet balance (paise), points, level, streak, suspension flag, and preferences.",
       "type": "object",
       "properties": {
         "userId": { "type": "string", "description": "Firebase Auth UID matching document ID." },
@@ -10,6 +10,7 @@
         "email": { "type": "string", "description": "User email address (private to owner/admin)." },
         "country": { "type": "string", "description": "Selected country name." },
         "coins": { "type": "integer", "description": "Current virtual coin balance." },
+        "walletBalancePaise": { "type": "integer", "description": "INR wallet balance stored in paise (100 = Rs 1.00)." },
         "points": { "type": "integer", "description": "Accumulated reward points." },
         "level": { "type": "integer", "description": "Creator level from 1 to 10." },
         "referralCode": { "type": "string", "description": "Unique referral code for sharing." },
@@ -40,25 +41,25 @@
         "coinPrice": { "type": "integer" },
         "status": { "type": "string", "enum": ["COMPLETED", "PENDING", "CANCELLED"] },
         "contentLines": { "type": "array", "description": "Unlocked hashtags, captions, or bio lines." },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." },
-        "updatedAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "serviceId", "serviceName", "categoryId", "categoryName", "itemCount", "coinPrice", "status", "contentLines", "createdAt", "updatedAt"]
     },
     "WalletTransaction": {
       "title": "WalletTransaction",
-      "description": "Immutable wallet transaction ledger entry for coin additions, spends, bonuses, and rewards.",
+      "description": "Immutable wallet transaction ledger entry for coin additions, spends, INR deposits, service orders, refunds, bonuses, and rewards.",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
-        "txType": { "type": "string", "enum": ["PURCHASE", "SPEND", "BONUS", "DAILY_REWARD", "SPIN_REWARD", "REFERRAL"] },
+        "txType": { "type": "string", "enum": ["PURCHASE", "SPEND", "BONUS", "DAILY_REWARD", "SPIN_REWARD", "REFERRAL", "DEPOSIT", "SERVICE_ORDER", "REFUND"] },
         "title": { "type": "string" },
         "description": { "type": "string" },
         "coinDelta": { "type": "integer" },
         "pointsDelta": { "type": "integer" },
         "priceInr": { "type": "integer" },
         "status": { "type": "string", "enum": ["SUCCESSFUL", "PENDING", "FAILED", "REFUNDED"] },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." }
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "txType", "title", "coinDelta", "pointsDelta", "priceInr", "status", "createdAt"]
     },
@@ -72,13 +73,13 @@
         "serviceName": { "type": "string" },
         "categoryName": { "type": "string" },
         "contentText": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." }
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "serviceId", "serviceName", "categoryName", "contentText", "createdAt"]
     },
     "AppNotification": {
       "title": "AppNotification",
-      "description": "In-app notification entry for purchases, orders, daily rewards, and level-ups.",
+      "description": "In-app notification entry for purchases, orders, deposits, daily rewards, and level-ups.",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
@@ -86,7 +87,7 @@
         "body": { "type": "string" },
         "category": { "type": "string", "enum": ["PURCHASE", "REWARD", "ORDER", "LEVEL", "SYSTEM"] },
         "read": { "type": "boolean" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." }
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "title", "body", "category", "read", "createdAt"]
     },
@@ -100,8 +101,8 @@
         "category": { "type": "string" },
         "description": { "type": "string" },
         "status": { "type": "string", "enum": ["OPEN", "IN_PROGRESS", "RESOLVED"] },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." },
-        "updatedAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "subject", "category", "description", "status", "createdAt", "updatedAt"]
     },
@@ -118,8 +119,8 @@
         "coinPrice": { "type": "integer" },
         "trending": { "type": "boolean" },
         "published": { "type": "boolean" },
-        "providerName": { "type": "string", "description": "Editable service provider name." },
-        "photoUrl": { "type": "string", "description": "Editable service photo URL or compressed data URI." },
+        "providerName": { "type": "string" },
+        "photoUrl": { "type": "string" },
         "contentLines": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
@@ -128,7 +129,7 @@
     },
     "CatalogCategory": {
       "title": "CatalogCategory",
-      "description": "Admin-managed service category with editable name, subtitle, description, and photo.",
+      "description": "Admin-managed service category shown in 2-column 1:1 square grid with ImgBB photo.",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
@@ -142,6 +143,93 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "subtitle", "description", "emoji", "sortOrder", "active", "createdAt", "updatedAt"]
+    },
+    "ServiceFile": {
+      "title": "ServiceFile",
+      "description": "Custom service file / sub-category inside a CatalogCategory (e.g., Instagram Followers, Reel Views, Likes).",
+      "type": "object",
+      "properties": {
+        "categoryId": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "name": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "emoji": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "sortOrder": { "type": "integer" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["categoryId", "categoryName", "name", "subtitle", "emoji", "sortOrder", "active", "createdAt", "updatedAt"]
+    },
+    "ServicePlan": {
+      "title": "ServicePlan",
+      "description": "Orderable service plan inside a ServiceFile with price per 1k in paise, quantity bounds, input hint, and preset discount tiers.",
+      "type": "object",
+      "properties": {
+        "categoryId": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "fileId": { "type": "string" },
+        "fileName": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "pricePer1kPaise": { "type": "integer" },
+        "minQty": { "type": "integer" },
+        "maxQty": { "type": "integer" },
+        "inputHint": { "type": "string" },
+        "presetTiers": { "type": "array", "description": "List of qty:discountPct strings such as 100:0, 2000:5." },
+        "sortOrder": { "type": "integer" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["categoryId", "categoryName", "fileId", "fileName", "name", "description", "pricePer1kPaise", "minQty", "maxQty", "inputHint", "presetTiers", "sortOrder", "active", "createdAt", "updatedAt"]
+    },
+    "ServiceOrder": {
+      "title": "ServiceOrder",
+      "description": "User-submitted service order paid via INR wallet or direct UPI QR + UTR, managed by Admin and Co-Admin.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "fileId": { "type": "string" },
+        "fileName": { "type": "string" },
+        "planId": { "type": "string" },
+        "planName": { "type": "string" },
+        "targetLink": { "type": "string" },
+        "quantity": { "type": "integer" },
+        "totalPricePaise": { "type": "integer" },
+        "paymentMethod": { "type": "string", "enum": ["WALLET", "UPI_DIRECT"] },
+        "utrNumber": { "type": "string" },
+        "paymentProofUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"] },
+        "adminNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "categoryId", "categoryName", "fileId", "fileName", "planId", "planName", "targetLink", "quantity", "totalPricePaise", "paymentMethod", "status", "createdAt", "updatedAt"]
+    },
+    "FundRequest": {
+      "title": "FundRequest",
+      "description": "User UPI wallet deposit request with UTR and optional ImgBB proof screenshot, approved by Admin or Co-Admin.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "amountPaise": { "type": "integer" },
+        "utrNumber": { "type": "string" },
+        "proofImageUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "adminNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "amountPaise", "utrNumber", "status", "createdAt", "updatedAt"]
     },
     "CoinPackage": {
       "title": "CoinPackage",
@@ -163,7 +251,7 @@
     },
     "AppConfig": {
       "title": "AppConfig",
-      "description": "Global real-time configuration controlled by the Admin Panel for the User Panel.",
+      "description": "Global real-time configuration including UPI payment details, QR code URL, support link, and feature switches.",
       "type": "object",
       "properties": {
         "maintenanceMode": { "type": "boolean" },
@@ -174,6 +262,12 @@
         "referralBonusCoins": { "type": "integer" },
         "spinEnabled": { "type": "boolean" },
         "dailyRewardsEnabled": { "type": "boolean" },
+        "upiId": { "type": "string" },
+        "upiMerchantName": { "type": "string" },
+        "paymentQrUrl": { "type": "string" },
+        "paymentInstructions": { "type": "string" },
+        "minDepositInr": { "type": "integer" },
+        "supportLink": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["maintenanceMode", "maintenanceMessage", "announcementTitle", "announcementBody", "welcomeCoins", "referralBonusCoins", "spinEnabled", "dailyRewardsEnabled", "updatedAt"]
@@ -222,7 +316,7 @@
   "firestore": {
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
-      "description": "User profile, wallet balance, points, level, streak, suspension flag, and app settings."
+      "description": "User profile, coin & INR wallet balance, points, level, streak, suspension flag, and app settings."
     },
     "/users/{userId}/orders/{orderId}": {
       "schema": { "$ref": "#/entities/Order" },
@@ -250,7 +344,23 @@
     },
     "/catalogCategories/{categoryId}": {
       "schema": { "$ref": "#/entities/CatalogCategory" },
-      "description": "Admin-managed service categories."
+      "description": "Admin-managed service categories displayed in a 2-column 1:1 grid."
+    },
+    "/serviceFiles/{fileId}": {
+      "schema": { "$ref": "#/entities/ServiceFile" },
+      "description": "Admin-managed custom service files / sub-categories inside each category."
+    },
+    "/servicePlans/{planId}": {
+      "schema": { "$ref": "#/entities/ServicePlan" },
+      "description": "Admin-managed orderable service plans inside each service file."
+    },
+    "/serviceOrders/{orderId}": {
+      "schema": { "$ref": "#/entities/ServiceOrder" },
+      "description": "User service orders paid by wallet or UPI QR, fulfilled by Admin and Co-Admin."
+    },
+    "/fundRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/FundRequest" },
+      "description": "User INR wallet deposit requests with UTR and payment proof screenshot."
     },
     "/coinPackages/{packageId}": {
       "schema": { "$ref": "#/entities/CoinPackage" },
@@ -258,7 +368,7 @@
     },
     "/appConfig/{configId}": {
       "schema": { "$ref": "#/entities/AppConfig" },
-      "description": "Global real-time app control switches and banners."
+      "description": "Global real-time app control switches, UPI payment settings, QR code, and banners."
     },
     "/adminStaff/{staffKey}": {
       "schema": { "$ref": "#/entities/AdminStaff" },

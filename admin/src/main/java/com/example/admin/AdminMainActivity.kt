@@ -26,11 +26,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +45,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -77,6 +79,7 @@ import com.example.admin.theme.AdminTheme
 import com.example.admin.ui.AdminCatalogTab
 import com.example.admin.ui.AdminControlTab
 import com.example.admin.ui.AdminLoginScreen
+import com.example.admin.ui.AdminOrdersPaymentsTab
 import com.example.admin.ui.AdminOverviewTab
 import com.example.admin.ui.AdminTeamTab
 import com.example.admin.ui.AdminUsersTab
@@ -88,10 +91,10 @@ import kotlinx.coroutines.launch
 
 private enum class AdminNavTab(val label: String, val icon: ImageVector) {
     OVERVIEW("Overview", Icons.Filled.Dashboard),
-    USERS("Users", Icons.Filled.People),
+    ORDERS("Orders", Icons.Filled.ReceiptLong),
     CATALOG("Catalog", Icons.Filled.Inventory2),
-    CONTROL("Control", Icons.Filled.Tune),
-    TEAM("Team", Icons.Filled.Groups)
+    USERS("Users", Icons.Filled.People),
+    CONTROL("Control", Icons.Filled.Tune)
 }
 
 class AdminMainActivity : ComponentActivity() {
@@ -235,7 +238,10 @@ private fun AdminAuthenticatedShell(
 
     val users by viewModel.users.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val services by viewModel.services.collectAsStateWithLifecycle()
+    val serviceFiles by viewModel.serviceFiles.collectAsStateWithLifecycle()
+    val servicePlans by viewModel.servicePlans.collectAsStateWithLifecycle()
+    val serviceOrders by viewModel.serviceOrders.collectAsStateWithLifecycle()
+    val fundRequests by viewModel.fundRequests.collectAsStateWithLifecycle()
     val packages by viewModel.coinPackages.collectAsStateWithLifecycle()
     val appConfig by viewModel.appConfig.collectAsStateWithLifecycle()
     val auditLogs by viewModel.auditLogs.collectAsStateWithLifecycle()
@@ -254,15 +260,9 @@ private fun AdminAuthenticatedShell(
         }
     }
 
-    // Stealth design: Team tab is visible ONLY to Main Admin; other admins see a complete, seamless 4-tab Admin Panel
-    val visibleTabs = remember(session.isMainAdmin) {
-        if (session.isMainAdmin) {
-            listOf(AdminNavTab.OVERVIEW, AdminNavTab.USERS, AdminNavTab.CATALOG, AdminNavTab.CONTROL, AdminNavTab.TEAM)
-        } else {
-            listOf(AdminNavTab.OVERVIEW, AdminNavTab.USERS, AdminNavTab.CATALOG, AdminNavTab.CONTROL)
-        }
-    }
+    val visibleTabs = remember { AdminNavTab.entries }
     var currentTab by remember { mutableStateOf(AdminNavTab.OVERVIEW) }
+    var controlSubTab by remember { mutableIntStateOf(0) } // 0 = Settings, 1 = Team (Main Admin only)
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -281,7 +281,7 @@ private fun AdminAuthenticatedShell(
                 .padding(innerPadding)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Unified Top Bar (identical title & branding for all admins)
+                // Unified Top Bar
                 Surface(
                     color = Color.White,
                     border = BorderStroke(0.5.dp, AdminBorder),
@@ -336,15 +336,66 @@ private fun AdminAuthenticatedShell(
                         AdminNavTab.OVERVIEW -> AdminOverviewTab(
                             adminName = session.displayName,
                             users = users,
-                            services = services,
-                            packages = packages,
+                            serviceOrders = serviceOrders,
+                            fundRequests = fundRequests,
+                            servicePlans = servicePlans,
                             appConfig = appConfig,
                             auditLogs = auditLogs,
                             onToggleMaintenance = { enabled ->
                                 viewModel.saveConfig(appConfig.copy(maintenanceMode = enabled))
                             },
+                            onOpenOrders = { currentTab = AdminNavTab.ORDERS },
                             onOpenUsers = { currentTab = AdminNavTab.USERS },
+                            onOpenCatalog = { currentTab = AdminNavTab.CATALOG },
                             onOpenControl = { currentTab = AdminNavTab.CONTROL }
+                        )
+
+                        AdminNavTab.ORDERS -> AdminOrdersPaymentsTab(
+                            orders = serviceOrders,
+                            fundRequests = fundRequests,
+                            appConfig = appConfig,
+                            busy = busy,
+                            onUpdateOrder = { order, status, note, refund ->
+                                viewModel.updateServiceOrderStatus(order, status, note, refund)
+                            },
+                            onApproveDeposit = { req, note ->
+                                viewModel.approveFundRequest(req, note)
+                            },
+                            onRejectDeposit = { req, note ->
+                                viewModel.rejectFundRequest(req, note)
+                            },
+                            onSavePaymentConfig = { updated ->
+                                viewModel.saveConfig(updated)
+                            },
+                            onCopyToast = { msg -> viewModel.showToast(msg) }
+                        )
+
+                        AdminNavTab.CATALOG -> AdminCatalogTab(
+                            categories = categories,
+                            serviceFiles = serviceFiles,
+                            servicePlans = servicePlans,
+                            packages = packages,
+                            busy = busy,
+                            onSeedSocialCatalog = { viewModel.seedSocialStarterCatalog() },
+                            onSaveCategory = { id, name, subtitle, desc, emoji, photo, order, active, done ->
+                                viewModel.saveCategory(id, name, subtitle, desc, emoji, photo, order, active, done)
+                            },
+                            onDeleteCategory = { viewModel.deleteCategory(it) },
+                            onSaveFile = { id, catId, catName, name, subtitle, emoji, photo, order, active, done ->
+                                viewModel.saveServiceFile(id, catId, catName, name, subtitle, emoji, photo, order, active, done)
+                            },
+                            onDeleteFile = { viewModel.deleteServiceFile(it) },
+                            onSavePlan = { id, catId, catName, fileId, fileName, name, desc, photo, pricePaise, minQ, maxQ, hint, tiers, order, active, done ->
+                                viewModel.saveServicePlan(
+                                    id, catId, catName, fileId, fileName, name, desc, photo,
+                                    pricePaise, minQ, maxQ, hint, tiers, order, active, done
+                                )
+                            },
+                            onDeletePlan = { viewModel.deleteServicePlan(it) },
+                            onSavePackage = { id, name, coins, bonus, pts, inr, badge, order, active, done ->
+                                viewModel.savePackage(id, name, coins, bonus, pts, inr, badge, order, active, done)
+                            },
+                            onDeletePackage = { viewModel.deletePackage(it) }
                         )
 
                         AdminNavTab.USERS -> AdminUsersTab(
@@ -354,8 +405,8 @@ private fun AdminAuthenticatedShell(
                             selectedUserTickets = selectedTickets,
                             busy = busy,
                             onSelectUser = { viewModel.selectUser(it) },
-                            onUpdateUser = { u, coins, pts, lvl, blocked, reason ->
-                                viewModel.updateUser(u, coins, pts, lvl, blocked, reason)
+                            onUpdateUser = { u, coins, walletPaise, pts, lvl, blocked, reason ->
+                                viewModel.updateUser(u, coins, walletPaise, pts, lvl, blocked, reason)
                             },
                             onUpdateOrderStatus = { uid, oid, st ->
                                 viewModel.updateOrderStatus(uid, oid, st)
@@ -368,55 +419,59 @@ private fun AdminAuthenticatedShell(
                             }
                         )
 
-                        AdminNavTab.CATALOG -> AdminCatalogTab(
-                            categories = categories,
-                            services = services,
-                            packages = packages,
-                            busy = busy,
-                            onSaveCategory = { id, name, subtitle, desc, emoji, photo, order, active, done ->
-                                viewModel.saveCategory(id, name, subtitle, desc, emoji, photo, order, active, done)
-                            },
-                            onDeleteCategory = { viewModel.deleteCategory(it) },
-                            onSeedDefaultCategories = { viewModel.seedDefaultCategories() },
-                            onSeedDefaultServices = { viewModel.seedDefaultServices() },
-                            onSaveService = { id, catId, catName, name, type, price, provider, photo, trending, published, lines, done ->
-                                viewModel.saveService(id, catId, catName, name, type, price, provider, photo, trending, published, lines, done)
-                            },
-                            onDeleteService = { viewModel.deleteService(it) },
-                            onSavePackage = { id, name, coins, bonus, pts, inr, badge, order, active, done ->
-                                viewModel.savePackage(id, name, coins, bonus, pts, inr, badge, order, active, done)
-                            },
-                            onDeletePackage = { viewModel.deletePackage(it) }
-                        )
-
-                        AdminNavTab.CONTROL -> AdminControlTab(
-                            config = appConfig,
-                            userCount = users.size,
-                            busy = busy,
-                            onSaveConfig = { viewModel.saveConfig(it) },
-                            onBroadcast = { title, body, done ->
-                                viewModel.broadcastNotification(title, body, done)
+                        AdminNavTab.CONTROL -> Column(modifier = Modifier.fillMaxSize()) {
+                            if (session.isMainAdmin) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 18.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    FilterChip(
+                                        selected = controlSubTab == 0,
+                                        onClick = { controlSubTab = 0 },
+                                        label = { Text("App Settings", fontWeight = FontWeight.SemiBold) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    FilterChip(
+                                        selected = controlSubTab == 1,
+                                        onClick = { controlSubTab = 1 },
+                                        label = { Text("Co-Admins (${adminStaff.size})", fontWeight = FontWeight.SemiBold) },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("control_subtab_team")
+                                    )
+                                }
                             }
-                        )
-
-                        AdminNavTab.TEAM -> if (session.isMainAdmin) {
-                            AdminTeamTab(
-                                staffList = adminStaff,
-                                busy = busy,
-                                onCreateMember = { name, pass, done ->
-                                    viewModel.createAdminMember(name, pass, done)
-                                },
-                                onToggleMember = { entry, active ->
-                                    viewModel.toggleAdminMember(entry, active)
-                                },
-                                onDeleteMember = { viewModel.deleteAdminMember(it) }
-                            )
+                            if (session.isMainAdmin && controlSubTab == 1) {
+                                AdminTeamTab(
+                                    staffList = adminStaff,
+                                    busy = busy,
+                                    onCreateMember = { name, pass, done ->
+                                        viewModel.createAdminMember(name, pass, done)
+                                    },
+                                    onToggleMember = { entry, active ->
+                                        viewModel.toggleAdminMember(entry, active)
+                                    },
+                                    onDeleteMember = { viewModel.deleteAdminMember(it) }
+                                )
+                            } else {
+                                AdminControlTab(
+                                    config = appConfig,
+                                    userCount = users.size,
+                                    busy = busy,
+                                    onSaveConfig = { viewModel.saveConfig(it) },
+                                    onBroadcast = { title, body, done ->
+                                        viewModel.broadcastNotification(title, body, done)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Bottom Navigation Bar
+            // Bottom Navigation Bar (5 clean tabs shared by Main Admin & Co-Admin)
             Surface(
                 color = Color.White,
                 shadowElevation = 10.dp,
@@ -429,7 +484,7 @@ private fun AdminAuthenticatedShell(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(horizontal = 6.dp, vertical = 10.dp),
+                        .padding(horizontal = 4.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -451,7 +506,7 @@ private fun AdminAuthenticatedShell(
                                 imageVector = tab.icon,
                                 contentDescription = tab.label,
                                 tint = tint,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(23.dp)
                             )
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(

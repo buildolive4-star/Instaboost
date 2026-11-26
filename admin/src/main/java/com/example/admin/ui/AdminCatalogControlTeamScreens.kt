@@ -145,7 +145,7 @@ fun AdminControlTab(
                     Button(
                         onClick = {
                             onSaveConfig(
-                                AdminAppConfig(
+                                config.copy(
                                     maintenanceMode = maintenanceMode,
                                     maintenanceMessage = maintenanceMessage,
                                     announcementTitle = announcementTitle,

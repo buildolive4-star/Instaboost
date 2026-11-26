@@ -13,13 +13,18 @@ import com.example.data.CreatorBoostRepository
 import com.example.data.DailyRewardDay
 import com.example.data.DefaultCatalog
 import com.example.data.FavoritePack
+import com.example.data.FundRequestRecord
 import com.example.data.OrderRecord
 import com.example.data.ServiceCategoryUi
+import com.example.data.ServiceFileItem
+import com.example.data.ServiceOrderRecord
+import com.example.data.ServicePlanItem
 import com.example.data.SpinSegment
 import com.example.data.SupportTicket
 import com.example.data.UiState
 import com.example.data.UserProfile
 import com.example.data.WalletTransaction
+import com.example.data.formatInrFromPaise
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -144,31 +149,84 @@ class CreatorBoostViewModel(
 
     val categories: StateFlow<List<ServiceCategoryUi>> = repository.observeActiveCatalogCategories()
         .map { remote ->
-            val defaultsById = DefaultCatalog.categories.associateBy { it.id }
-            val remoteMapped = remote.map { cat ->
-                val base = defaultsById[cat.id]
-                ServiceCategoryUi(
-                    id = cat.id,
-                    name = cat.name.ifBlank { base?.name ?: "Category" },
-                    subtitle = cat.subtitle.ifBlank { base?.subtitle ?: "Trending packs" },
-                    description = cat.description.ifBlank { base?.description ?: "Curated creator packs" },
-                    imageRes = if (cat.photoUrl.isBlank()) base?.imageRes else null,
-                    photoUrl = cat.photoUrl,
-                    gradientStart = base?.gradientStart ?: Color(0xFF0077FF),
-                    gradientEnd = base?.gradientEnd ?: Color(0xFF00C6FF),
-                    bannerTint = base?.bannerTint ?: Color(0xFFE3F1FC),
-                    emoji = cat.emoji.ifBlank { base?.emoji ?: "✨" },
-                    trending = base?.trending ?: true
-                )
+            val palette = listOf(
+                Triple(Color(0xFFF58529), Color(0xFFDD2A7B), Color(0xFFFCE7F3)),
+                Triple(Color(0xFF1877F2), Color(0xFF0A4DA2), Color(0xFFE0F2FE)),
+                Triple(Color(0xFF2AABEE), Color(0xFF0284C7), Color(0xFFE0F7FA)),
+                Triple(Color(0xFFEF4444), Color(0xFFB91C1C), Color(0xFFFEE2E2)),
+                Triple(Color(0xFF8B5CF6), Color(0xFF5B21B6), Color(0xFFEDE9FE)),
+                Triple(Color(0xFF10B981), Color(0xFF047857), Color(0xFFD1FAE5))
+            )
+            if (remote.isNotEmpty()) {
+                val starterById = DefaultCatalog.starterSocialCategories.associateBy { it.id }
+                remote.mapIndexed { idx, cat ->
+                    val base = starterById[cat.id]
+                    val colors = palette[idx % palette.size]
+                    ServiceCategoryUi(
+                        id = cat.id,
+                        name = cat.name.ifBlank { base?.name ?: "Category" },
+                        subtitle = cat.subtitle.ifBlank { base?.subtitle ?: "Services available" },
+                        description = cat.description.ifBlank { base?.description ?: "Custom services managed by Admin" },
+                        imageRes = null,
+                        photoUrl = cat.photoUrl,
+                        gradientStart = base?.gradientStart ?: colors.first,
+                        gradientEnd = base?.gradientEnd ?: colors.second,
+                        bannerTint = base?.bannerTint ?: colors.third,
+                        emoji = cat.emoji.ifBlank { base?.emoji ?: "✨" },
+                        trending = true
+                    )
+                }
+            } else {
+                DefaultCatalog.starterSocialCategories
             }
-            val remoteIds = remoteMapped.map { it.id }.toSet()
-            remoteMapped + DefaultCatalog.categories.filterNot { it.id in remoteIds }
         }
         .catch { error ->
             if (error is CancellationException) throw error
-            emit(DefaultCatalog.categories)
+            emit(DefaultCatalog.starterSocialCategories)
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DefaultCatalog.categories)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DefaultCatalog.starterSocialCategories)
+
+    val serviceFiles: StateFlow<List<ServiceFileItem>> = repository.observeActiveServiceFiles()
+        .map { remote ->
+            if (remote.isNotEmpty()) remote else DefaultCatalog.starterServiceFiles
+        }
+        .catch { error ->
+            if (error is CancellationException) throw error
+            emit(DefaultCatalog.starterServiceFiles)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DefaultCatalog.starterServiceFiles)
+
+    val servicePlans: StateFlow<List<ServicePlanItem>> = repository.observeActiveServicePlans()
+        .map { remote ->
+            if (remote.isNotEmpty()) remote else DefaultCatalog.starterServicePlans
+        }
+        .catch { error ->
+            if (error is CancellationException) throw error
+            emit(DefaultCatalog.starterServicePlans)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DefaultCatalog.starterServicePlans)
+
+    val myServiceOrders: StateFlow<List<ServiceOrderRecord>> = repository.observeMyServiceOrders(currentUserId)
+        .catch { error ->
+            val fsError = generateSequence(error) { it.cause }
+                .filterIsInstance<FirebaseFirestoreException>()
+                .firstOrNull()
+            if (fsError == null && error is CancellationException) throw error
+            Log.w(VM_TAG, "Error observing serviceOrders", fsError ?: error)
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    val myFundRequests: StateFlow<List<FundRequestRecord>> = repository.observeMyFundRequests(currentUserId)
+        .catch { error ->
+            val fsError = generateSequence(error) { it.cause }
+                .filterIsInstance<FirebaseFirestoreException>()
+                .firstOrNull()
+            if (fsError == null && error is CancellationException) throw error
+            Log.w(VM_TAG, "Error observing fundRequests", fsError ?: error)
+            emit(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     val coinPackages: StateFlow<List<CoinPackageItem>> = repository.observeActiveCoinPackages()
         .map { remote ->
@@ -475,6 +533,80 @@ class CreatorBoostViewModel(
                 .onFailure { err ->
                     _toastMessage.value = err.localizedMessage ?: "Admin action failed."
                 }
+            _busyAction.value = false
+        }
+    }
+
+    // --- NEW SERVICE ORDERS & INR FUND REQUESTS ---
+
+    fun placeServiceOrder(
+        plan: ServicePlanItem,
+        targetLink: String,
+        quantity: Long,
+        totalPricePaise: Long,
+        paymentMethod: String,
+        utrNumber: String = "",
+        paymentProofUrl: String = "",
+        onInsufficientBalance: () -> Unit = {},
+        onSuccess: (String) -> Unit = {}
+    ) {
+        val profile = currentProfileOrNull() ?: return
+        if (paymentMethod == "WALLET" && profile.walletBalancePaise < totalPricePaise) {
+            onInsufficientBalance()
+            return
+        }
+        viewModelScope.launch {
+            _busyAction.value = true
+            repository.placeServiceOrder(
+                profile = profile,
+                plan = plan,
+                targetLink = targetLink,
+                quantity = quantity,
+                totalPricePaise = totalPricePaise,
+                paymentMethod = paymentMethod,
+                utrNumber = utrNumber,
+                paymentProofUrl = paymentProofUrl
+            ).onSuccess { orderId ->
+                _mascotMessage.value = "Order placed! Track it in My Orders."
+                _toastMessage.value = "Order placed for ${formatInrFromPaise(totalPricePaise)}!"
+                onSuccess(orderId)
+            }.onFailure { err ->
+                if (err.message == "INSUFFICIENT_WALLET_BALANCE") {
+                    onInsufficientBalance()
+                } else {
+                    _toastMessage.value = err.localizedMessage ?: "Could not place order."
+                }
+            }
+            _busyAction.value = false
+        }
+    }
+
+    fun submitFundRequest(
+        amountPaise: Long,
+        utrNumber: String,
+        proofImageUrl: String = "",
+        onSuccess: () -> Unit = {}
+    ) {
+        val profile = currentProfileOrNull() ?: return
+        val minInr = appConfig.value.minDepositInr.coerceAtLeast(1L)
+        if (amountPaise < minInr * 100L) {
+            _toastMessage.value = "Minimum deposit amount is ₹$minInr."
+            return
+        }
+        viewModelScope.launch {
+            _busyAction.value = true
+            repository.submitFundRequest(
+                profile = profile,
+                amountPaise = amountPaise,
+                utrNumber = utrNumber,
+                proofImageUrl = proofImageUrl
+            ).onSuccess {
+                _mascotMessage.value = "Deposit submitted! Admin will credit it soon."
+                _toastMessage.value = "Deposit request for ${formatInrFromPaise(amountPaise)} submitted!"
+                onSuccess()
+            }.onFailure { err ->
+                _toastMessage.value = err.localizedMessage ?: "Could not submit deposit request."
+            }
             _busyAction.value = false
         }
     }

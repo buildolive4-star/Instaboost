@@ -279,6 +279,104 @@ class CreatorBoostRepository(
         )
     }
 
+    fun observeActiveServiceFiles(): Flow<List<ServiceFileItem>> = flow {
+        val uid = requireUserId()
+        val path = "serviceFiles"
+        emitAll(
+            db.collection("serviceFiles")
+                .whereEqualTo("active", true)
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(ServiceFileItem::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedBy { it.sortOrder }
+                }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val ex = firestoreError ?: (error as? Exception)
+                    if (ex != null && auth.currentUser?.uid == uid) {
+                        handleFirestoreError(ex, OperationType.LIST, path)
+                    }
+                    emit(emptyList())
+                }
+        )
+    }
+
+    fun observeActiveServicePlans(): Flow<List<ServicePlanItem>> = flow {
+        val uid = requireUserId()
+        val path = "servicePlans"
+        emitAll(
+            db.collection("servicePlans")
+                .whereEqualTo("active", true)
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(ServicePlanItem::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedBy { it.sortOrder }
+                }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val ex = firestoreError ?: (error as? Exception)
+                    if (ex != null && auth.currentUser?.uid == uid) {
+                        handleFirestoreError(ex, OperationType.LIST, path)
+                    }
+                    emit(emptyList())
+                }
+        )
+    }
+
+    fun observeMyServiceOrders(userId: String): Flow<List<ServiceOrderRecord>> = flow {
+        val path = "serviceOrders"
+        emitAll(
+            db.collection("serviceOrders")
+                .whereEqualTo("userId", userId)
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(ServiceOrderRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedByDescending { it.createdAt?.seconds ?: Long.MAX_VALUE }
+                }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val ex = firestoreError ?: (error as? Exception)
+                    if (ex != null && auth.currentUser?.uid == userId) {
+                        handleFirestoreError(ex, OperationType.LIST, path)
+                    }
+                    emit(emptyList())
+                }
+        )
+    }
+
+    fun observeMyFundRequests(userId: String): Flow<List<FundRequestRecord>> = flow {
+        val path = "fundRequests"
+        emitAll(
+            db.collection("fundRequests")
+                .whereEqualTo("userId", userId)
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(FundRequestRecord::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedByDescending { it.createdAt?.seconds ?: Long.MAX_VALUE }
+                }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val ex = firestoreError ?: (error as? Exception)
+                    if (ex != null && auth.currentUser?.uid == userId) {
+                        handleFirestoreError(ex, OperationType.LIST, path)
+                    }
+                    emit(emptyList())
+                }
+        )
+    }
+
     // --- CRASH-SAFE MUTATIONS (Result<T>) ---
 
     suspend fun ensureUserProfileInitialized(): Result<Unit> {
@@ -304,6 +402,7 @@ class CreatorBoostRepository(
                     "email" to safeEmail,
                     "country" to "India",
                     "coins" to welcomeCoins,
+                    "walletBalancePaise" to 0L,
                     "points" to 0L,
                     "level" to 1L,
                     "referralCode" to generateReferralCode(uid),
@@ -987,6 +1086,191 @@ class CreatorBoostRepository(
             }
             ref.set(payload).await()
             Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, path)
+            Result.failure(e)
+        }
+    }
+
+    // --- SERVICE ORDERS & INR FUND REQUESTS ---
+
+    suspend fun placeServiceOrder(
+        profile: UserProfile,
+        plan: ServicePlanItem,
+        targetLink: String,
+        quantity: Long,
+        totalPricePaise: Long,
+        paymentMethod: String,
+        utrNumber: String = "",
+        paymentProofUrl: String = ""
+    ): Result<String> {
+        var path = "serviceOrders"
+        return try {
+            val uid = requireUserId()
+            check(uid == profile.userId) { "User mismatch" }
+            val cleanLink = targetLink.trim()
+            if (cleanLink.length < 2 || cleanLink.length > 400) {
+                return Result.failure(IllegalArgumentException("Please enter a valid profile/post link or username."))
+            }
+            if (quantity < plan.minQty || quantity > plan.maxQty) {
+                return Result.failure(
+                    IllegalArgumentException("Quantity must be between ${plan.minQty} and ${plan.maxQty}.")
+                )
+            }
+            if (totalPricePaise < 1L) {
+                return Result.failure(IllegalArgumentException("Invalid order total."))
+            }
+
+            val cleanMethod = if (paymentMethod == "UPI_DIRECT") "UPI_DIRECT" else "WALLET"
+            val cleanUtr = utrNumber.trim()
+            if (cleanMethod == "WALLET") {
+                if (profile.walletBalancePaise < totalPricePaise) {
+                    return Result.failure(IllegalStateException("INSUFFICIENT_WALLET_BALANCE"))
+                }
+            } else {
+                if (cleanUtr.length !in 6..40) {
+                    return Result.failure(IllegalArgumentException("Enter a valid 6–40 character UTR / Transaction ID."))
+                }
+            }
+
+            val orderRef = db.collection("serviceOrders").document()
+            val userRef = db.collection("users").document(uid)
+            val notifRef = userRef.collection("notifications").document()
+            path = orderRef.path
+
+            val orderPayload = mutableMapOf<String, Any>(
+                "userId" to uid,
+                "userName" to profile.displayName.ifBlank { "Creator" }.take(80),
+                "categoryId" to plan.categoryId.ifBlank { "general" }.take(80),
+                "categoryName" to plan.categoryName.ifBlank { "Service" }.take(80),
+                "fileId" to plan.fileId.ifBlank { "general" }.take(80),
+                "fileName" to plan.fileName.ifBlank { "Service" }.take(100),
+                "planId" to plan.id.ifBlank { "plan" }.take(80),
+                "planName" to plan.name.ifBlank { "Service Plan" }.take(120),
+                "targetLink" to cleanLink,
+                "quantity" to quantity,
+                "totalPricePaise" to totalPricePaise,
+                "paymentMethod" to cleanMethod,
+                "status" to "PENDING",
+                "createdAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            if (profile.email.isNotBlank()) {
+                orderPayload["userEmail"] = profile.email.take(120)
+            }
+            if (cleanUtr.isNotBlank()) {
+                orderPayload["utrNumber"] = cleanUtr.take(40)
+            }
+            val cleanProof = paymentProofUrl.trim()
+            if (cleanProof.isNotBlank() && cleanProof.length <= 2048) {
+                orderPayload["paymentProofUrl"] = cleanProof
+            }
+
+            val batch = db.batch()
+            if (cleanMethod == "WALLET") {
+                val newWalletPaise = (profile.walletBalancePaise - totalPricePaise).coerceAtLeast(0L)
+                // Strictly only walletBalancePaise & updatedAt to satisfy zero-trust spend rule
+                batch.update(
+                    userRef,
+                    mapOf(
+                        "walletBalancePaise" to newWalletPaise,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+                val txRef = userRef.collection("transactions").document()
+                batch.set(
+                    txRef,
+                    mapOf(
+                        "userId" to uid,
+                        "txType" to "SERVICE_ORDER",
+                        "title" to "Order: ${plan.name.take(90)}",
+                        "description" to "${formatShortQty(quantity)} • ${formatInrFromPaise(totalPricePaise)} paid via Wallet",
+                        "coinDelta" to 0L,
+                        "pointsDelta" to 0L,
+                        "priceInr" to (totalPricePaise / 100L).coerceAtLeast(0L),
+                        "status" to "SUCCESSFUL",
+                        "createdAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            }
+
+            batch.set(orderRef, orderPayload)
+            batch.set(
+                notifRef,
+                mapOf(
+                    "userId" to uid,
+                    "title" to "Service Order Placed!",
+                    "body" to "${plan.name} (${formatShortQty(quantity)}) for ${formatInrFromPaise(totalPricePaise)} is now Pending.",
+                    "category" to "ORDER",
+                    "read" to false,
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.commit().await()
+            Result.success(orderRef.id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun submitFundRequest(
+        profile: UserProfile,
+        amountPaise: Long,
+        utrNumber: String,
+        proofImageUrl: String = ""
+    ): Result<String> {
+        var path = "fundRequests"
+        return try {
+            val uid = requireUserId()
+            check(uid == profile.userId) { "User mismatch" }
+            val cleanUtr = utrNumber.trim()
+            if (amountPaise < 100L) {
+                return Result.failure(IllegalArgumentException("Minimum deposit is ₹1.00."))
+            }
+            if (cleanUtr.length !in 6..40) {
+                return Result.failure(IllegalArgumentException("Enter a valid 6–40 character UTR / Transaction ID."))
+            }
+            val reqRef = db.collection("fundRequests").document()
+            val notifRef = db.collection("users").document(uid).collection("notifications").document()
+            path = reqRef.path
+
+            val payload = mutableMapOf<String, Any>(
+                "userId" to uid,
+                "userName" to profile.displayName.ifBlank { "Creator" }.take(80),
+                "amountPaise" to amountPaise,
+                "utrNumber" to cleanUtr,
+                "status" to "PENDING",
+                "createdAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            if (profile.email.isNotBlank()) {
+                payload["userEmail"] = profile.email.take(120)
+            }
+            val cleanProof = proofImageUrl.trim()
+            if (cleanProof.isNotBlank() && cleanProof.length <= 2048) {
+                payload["proofImageUrl"] = cleanProof
+            }
+
+            val batch = db.batch()
+            batch.set(reqRef, payload)
+            batch.set(
+                notifRef,
+                mapOf(
+                    "userId" to uid,
+                    "title" to "Deposit Submitted",
+                    "body" to "Your ${formatInrFromPaise(amountPaise)} UPI request (UTR: $cleanUtr) is awaiting verification.",
+                    "category" to "PURCHASE",
+                    "read" to false,
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.commit().await()
+            Result.success(reqRef.id)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

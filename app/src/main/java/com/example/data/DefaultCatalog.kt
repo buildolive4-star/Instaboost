@@ -575,4 +575,306 @@ object DefaultCatalog {
             )
         )
     )
+
+    // Starter Social Categories (shown if Admin hasn't created custom categories yet)
+    val starterSocialCategories: List<ServiceCategoryUi> = listOf(
+        ServiceCategoryUi(
+            id = "cat_instagram",
+            name = "Instagram",
+            subtitle = "Followers, Reels, Likes & Reach",
+            description = "Superfast Instagram growth services for reels, followers, likes, and reach.",
+            imageRes = null,
+            photoUrl = "",
+            gradientStart = Color(0xFFF58529),
+            gradientEnd = Color(0xFFDD2A7B),
+            bannerTint = Color(0xFFFCE7F3),
+            emoji = "📸",
+            trending = true
+        ),
+        ServiceCategoryUi(
+            id = "cat_facebook",
+            name = "Facebook",
+            subtitle = "Page Followers, Likes & Views",
+            description = "Boost your Facebook pages, posts, and reels.",
+            imageRes = null,
+            photoUrl = "",
+            gradientStart = Color(0xFF1877F2),
+            gradientEnd = Color(0xFF0A4DA2),
+            bannerTint = Color(0xFFE0F2FE),
+            emoji = "📘",
+            trending = true
+        ),
+        ServiceCategoryUi(
+            id = "cat_telegram",
+            name = "Telegram",
+            subtitle = "Channel Members & Post Views",
+            description = "Grow Telegram channels and groups with fast delivery.",
+            imageRes = null,
+            photoUrl = "",
+            gradientStart = Color(0xFF2AABEE),
+            gradientEnd = Color(0xFF229ED9),
+            bannerTint = Color(0xFFE0F7FA),
+            emoji = "✈️",
+            trending = true
+        ),
+        ServiceCategoryUi(
+            id = "cat_youtube",
+            name = "YouTube",
+            subtitle = "Views, Likes & Subscribers",
+            description = "High-retention YouTube video and Shorts boost plans.",
+            imageRes = null,
+            photoUrl = "",
+            gradientStart = Color(0xFFFF0000),
+            gradientEnd = Color(0xFFB91C1C),
+            bannerTint = Color(0xFFFEE2E2),
+            emoji = "▶️",
+            trending = true
+        )
+    )
+
+    val starterServiceFiles: List<ServiceFileItem> = listOf(
+        ServiceFileItem(
+            id = "file_ig_reel_views",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            name = "Instagram Reel Views",
+            subtitle = "Superfast reel & dashboard views",
+            emoji = "🎬",
+            sortOrder = 1L,
+            active = true
+        ),
+        ServiceFileItem(
+            id = "file_ig_followers",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            name = "Instagram Followers",
+            subtitle = "High quality & non-drop followers",
+            emoji = "👥",
+            sortOrder = 2L,
+            active = true
+        ),
+        ServiceFileItem(
+            id = "file_ig_likes",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            name = "Instagram Likes",
+            subtitle = "Instant likes for reels & posts",
+            emoji = "❤️",
+            sortOrder = 3L,
+            active = true
+        ),
+        ServiceFileItem(
+            id = "file_ig_reach",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            name = "Instagram Reach & Impressions",
+            subtitle = "Explore reach, saves & shares",
+            emoji = "📈",
+            sortOrder = 4L,
+            active = true
+        ),
+        ServiceFileItem(
+            id = "file_ig_story",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            name = "Instagram Story Views",
+            subtitle = "Fast active story views",
+            emoji = "👁️",
+            sortOrder = 5L,
+            active = true
+        ),
+        ServiceFileItem(
+            id = "file_fb_followers",
+            categoryId = "cat_facebook",
+            categoryName = "Facebook",
+            name = "Facebook Page Followers",
+            subtitle = "Page & profile followers",
+            emoji = "👍",
+            sortOrder = 1L,
+            active = true
+        ),
+        ServiceFileItem(
+            id = "file_tg_members",
+            categoryId = "cat_telegram",
+            categoryName = "Telegram",
+            name = "Telegram Channel Members",
+            subtitle = "Fast channel & group members",
+            emoji = "📣",
+            sortOrder = 1L,
+            active = true
+        ),
+        ServiceFileItem(
+            id = "file_yt_views",
+            categoryId = "cat_youtube",
+            categoryName = "YouTube",
+            name = "YouTube Video & Shorts Views",
+            subtitle = "High retention video views",
+            emoji = "🔥",
+            sortOrder = 1L,
+            active = true
+        )
+    )
+
+    val starterServicePlans: List<ServicePlanItem> = listOf(
+        ServicePlanItem(
+            id = "plan_ig_views_superfast",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            fileId = "file_ig_reel_views",
+            fileName = "Instagram Reel Views",
+            name = "IG Reel Views - Superfast ⚡",
+            description = "Instant start • High speed reel views",
+            pricePer1kPaise = 100L,
+            minQty = 100L,
+            maxQty = 500_000L,
+            inputHint = "Paste Instagram Reel Link",
+            presetTiers = listOf("500:0", "1000:0", "2000:5", "5000:6", "10000:9", "25000:10"),
+            sortOrder = 1L,
+            active = true
+        ),
+        ServicePlanItem(
+            id = "plan_ig_views_dashboard",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            fileId = "file_ig_reel_views",
+            fileName = "Instagram Reel Views",
+            name = "IG Reel Views 🚀 : Reel+Dashboard",
+            description = "Counted in Insights & Professional Dashboard",
+            pricePer1kPaise = 200L,
+            minQty = 100L,
+            maxQty = 500_000L,
+            inputHint = "Paste Instagram Reel Link",
+            presetTiers = listOf("500:0", "1000:0", "2000:5", "5000:8", "10000:10"),
+            sortOrder = 2L,
+            active = true
+        ),
+        ServicePlanItem(
+            id = "plan_ig_views_cheapest",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            fileId = "file_ig_reel_views",
+            fileName = "Instagram Reel Views",
+            name = "IG Reel Views Cheapest",
+            description = "Most affordable bulk reel views",
+            pricePer1kPaise = 80L,
+            minQty = 500L,
+            maxQty = 1_000_000L,
+            inputHint = "Paste Instagram Reel Link",
+            presetTiers = listOf("1000:0", "2000:0", "5000:5", "10000:8", "50000:10"),
+            sortOrder = 3L,
+            active = true
+        ),
+        ServicePlanItem(
+            id = "plan_ig_followers_real",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            fileId = "file_ig_followers",
+            fileName = "Instagram Followers",
+            name = "IG Followers - Non-Drop 30D Refill",
+            description = "High quality profile followers with refill guarantee",
+            pricePer1kPaise = 2400L,
+            minQty = 50L,
+            maxQty = 100_000L,
+            inputHint = "Enter Instagram Profile Link or @username",
+            presetTiers = listOf("100:0", "250:0", "500:0", "1000:5", "2000:6", "5000:9", "10000:10"),
+            sortOrder = 1L,
+            active = true
+        ),
+        ServicePlanItem(
+            id = "plan_ig_likes_fast",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            fileId = "file_ig_likes",
+            fileName = "Instagram Likes",
+            name = "IG Post/Reel Likes - Superfast ❤️",
+            description = "Instant likes delivery for posts and reels",
+            pricePer1kPaise = 600L,
+            minQty = 50L,
+            maxQty = 100_000L,
+            inputHint = "Paste Instagram Post or Reel Link",
+            presetTiers = listOf("100:0", "500:0", "1000:0", "2000:5", "5000:8"),
+            sortOrder = 1L,
+            active = true
+        ),
+        ServicePlanItem(
+            id = "plan_ig_reach_boost",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            fileId = "file_ig_reach",
+            fileName = "Instagram Reach & Impressions",
+            name = "IG Reach + Impressions + Profile Visits",
+            description = "Boost insights reach and explore signals",
+            pricePer1kPaise = 1200L,
+            minQty = 100L,
+            maxQty = 100_000L,
+            inputHint = "Paste Instagram Post or Reel Link",
+            presetTiers = listOf("250:0", "500:0", "1000:0", "2500:5", "5000:10"),
+            sortOrder = 1L,
+            active = true
+        ),
+        ServicePlanItem(
+            id = "plan_ig_story_fast",
+            categoryId = "cat_instagram",
+            categoryName = "Instagram",
+            fileId = "file_ig_story",
+            fileName = "Instagram Story Views",
+            name = "IG Story Views - All Active Stories",
+            description = "Instant story views across your active stories",
+            pricePer1kPaise = 500L,
+            minQty = 100L,
+            maxQty = 50_000L,
+            inputHint = "Enter Instagram @username",
+            presetTiers = listOf("100:0", "500:0", "1000:5", "5000:10"),
+            sortOrder = 1L,
+            active = true
+        ),
+        ServicePlanItem(
+            id = "plan_fb_page_followers",
+            categoryId = "cat_facebook",
+            categoryName = "Facebook",
+            fileId = "file_fb_followers",
+            fileName = "Facebook Page Followers",
+            name = "Facebook Page Followers - High Quality",
+            description = "Steady delivery for pages and professional profiles",
+            pricePer1kPaise = 3500L,
+            minQty = 100L,
+            maxQty = 50_000L,
+            inputHint = "Paste Facebook Page Link",
+            presetTiers = listOf("100:0", "500:0", "1000:5", "5000:10"),
+            sortOrder = 1L,
+            active = true
+        ),
+        ServicePlanItem(
+            id = "plan_tg_members_fast",
+            categoryId = "cat_telegram",
+            categoryName = "Telegram",
+            fileId = "file_tg_members",
+            fileName = "Telegram Channel Members",
+            name = "Telegram Channel Members - Non-Drop",
+            description = "Public channel & group members",
+            pricePer1kPaise = 4000L,
+            minQty = 100L,
+            maxQty = 50_000L,
+            inputHint = "Paste Telegram Channel Link (t.me/...)",
+            presetTiers = listOf("100:0", "500:0", "1000:5", "2000:8"),
+            sortOrder = 1L,
+            active = true
+        ),
+        ServicePlanItem(
+            id = "plan_yt_views_fast",
+            categoryId = "cat_youtube",
+            categoryName = "YouTube",
+            fileId = "file_yt_views",
+            fileName = "YouTube Video & Shorts Views",
+            name = "YouTube High Retention Views",
+            description = "Safe views for YouTube videos and Shorts",
+            pricePer1kPaise = 8500L,
+            minQty = 100L,
+            maxQty = 100_000L,
+            inputHint = "Paste YouTube Video or Shorts Link",
+            presetTiers = listOf("100:0", "500:0", "1000:5", "5000:10"),
+            sortOrder = 1L,
+            active = true
+        )
+    )
 }

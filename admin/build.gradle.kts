@@ -3,6 +3,7 @@ import groovy.json.JsonSlurper
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.secrets)
 }
 
 // Parse shared Firebase config from app/google-services.json & app/src/main/res/values/firebase_applet_config.xml
@@ -123,6 +124,12 @@ android {
     buildConfig = true
     resValues = true
   }
+}
+
+secrets {
+  propertiesFileName = ".env"
+  defaultPropertiesFileName = ".env.example"
+  ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
 }
 
 dependencies {

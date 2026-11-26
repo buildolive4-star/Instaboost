@@ -6,6 +6,57 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.IgnoreExtraProperties
 import com.google.firebase.firestore.ServerTimestamp
+import java.util.Locale
+
+fun formatInrFromPaise(paise: Long): String {
+    val safe = paise.coerceAtLeast(0L)
+    val rupees = safe / 100L
+    val rem = safe % 100L
+    return String.format(Locale.US, "₹%,d.%02d", rupees, rem)
+}
+
+fun formatRatePer1k(paise: Long): String {
+    val safe = paise.coerceAtLeast(0L)
+    val rupees = safe / 100L
+    val rem = safe % 100L
+    return String.format(Locale.US, "₹%d.%02d/k", rupees, rem)
+}
+
+fun formatShortQty(qty: Long): String {
+    return when {
+        qty >= 1_000_000L && qty % 1_000_000L == 0L -> "${qty / 1_000_000L}M"
+        qty >= 1_000L && qty % 1_000L == 0L -> "${qty / 1_000L}K"
+        else -> String.format(Locale.US, "%,d", qty)
+    }
+}
+
+data class QuantityTier(
+    val quantity: Long,
+    val discountPct: Int
+)
+
+fun parsePresetTiers(rawTiers: List<String>, minQty: Long, maxQty: Long): List<QuantityTier> {
+    val parsed = rawTiers.mapNotNull { entry ->
+        val parts = entry.trim().split(":")
+        val qty = parts.getOrNull(0)?.trim()?.toLongOrNull() ?: return@mapNotNull null
+        val disc = parts.getOrNull(1)?.trim()?.toIntOrNull()?.coerceIn(0, 80) ?: 0
+        if (qty in minQty..maxQty) QuantityTier(qty, disc) else null
+    }
+    if (parsed.isNotEmpty()) return parsed
+    return listOf(100L, 500L, 1000L, 2000L, 5000L, 10000L)
+        .filter { it in minQty..maxQty }
+        .ifEmpty { listOf(minQty) }
+        .map { QuantityTier(it, 0) }
+}
+
+fun calculateOrderPricePaise(pricePer1kPaise: Long, quantity: Long, discountPct: Int = 0): Long {
+    val safeRate = pricePer1kPaise.coerceAtLeast(1L)
+    val safeQty = quantity.coerceAtLeast(1L)
+    val rawPaise = ((safeRate * safeQty) + 500L) / 1000L
+    val safeDisc = discountPct.coerceIn(0, 80)
+    val discounted = (rawPaise * (100L - safeDisc)) / 100L
+    return discounted.coerceAtLeast(1L)
+}
 
 @Keep
 @IgnoreExtraProperties
@@ -16,6 +67,7 @@ data class UserProfile(
     val email: String = "",
     val country: String = "India",
     val coins: Long = 0L,
+    val walletBalancePaise: Long = 0L,
     val points: Long = 0L,
     val level: Long = 1L,
     val referralCode: String = "",
@@ -43,6 +95,91 @@ data class AppConfig(
     val referralBonusCoins: Long = 25L,
     val spinEnabled: Boolean = true,
     val dailyRewardsEnabled: Boolean = true,
+    val upiId: String = "",
+    val upiMerchantName: String = "Fame Maker",
+    val paymentQrUrl: String = "",
+    val paymentInstructions: String = "Scan the UPI QR code or copy UPI ID, complete payment, and submit the 12-digit UTR number.",
+    val minDepositInr: Long = 10L,
+    val supportLink: String = "",
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class ServiceFileItem(
+    @DocumentId val id: String = "",
+    val categoryId: String = "",
+    val categoryName: String = "",
+    val name: String = "",
+    val subtitle: String = "",
+    val emoji: String = "⚡",
+    val photoUrl: String = "",
+    val sortOrder: Long = 10L,
+    val active: Boolean = true,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class ServicePlanItem(
+    @DocumentId val id: String = "",
+    val categoryId: String = "",
+    val categoryName: String = "",
+    val fileId: String = "",
+    val fileName: String = "",
+    val name: String = "",
+    val description: String = "",
+    val photoUrl: String = "",
+    val pricePer1kPaise: Long = 100L,
+    val minQty: Long = 50L,
+    val maxQty: Long = 100_000L,
+    val inputHint: String = "Enter profile or post link",
+    val presetTiers: List<String> = listOf("100:0", "500:0", "1000:0", "2000:5", "5000:6", "10000:9"),
+    val sortOrder: Long = 10L,
+    val active: Boolean = true,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class ServiceOrderRecord(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val userName: String = "",
+    val userEmail: String = "",
+    val categoryId: String = "",
+    val categoryName: String = "",
+    val fileId: String = "",
+    val fileName: String = "",
+    val planId: String = "",
+    val planName: String = "",
+    val targetLink: String = "",
+    val quantity: Long = 0L,
+    val totalPricePaise: Long = 0L,
+    val paymentMethod: String = "WALLET",
+    val utrNumber: String = "",
+    val paymentProofUrl: String = "",
+    val status: String = "PENDING",
+    val adminNote: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class FundRequestRecord(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val userName: String = "",
+    val userEmail: String = "",
+    val amountPaise: Long = 0L,
+    val utrNumber: String = "",
+    val proofImageUrl: String = "",
+    val status: String = "PENDING",
+    val adminNote: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
 

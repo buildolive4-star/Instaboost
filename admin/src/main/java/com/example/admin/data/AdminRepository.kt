@@ -94,7 +94,6 @@ class AdminRepository(
             val officialName = staffSnap.getString("staffName")?.takeIf { it.isNotBlank() } ?: cleanName
             val grantRef = db.collection("admins").document(user.uid)
 
-            // Replace any stale grant document first so create rule passes cleanly
             val existingGrant = grantRef.get().await()
             if (existingGrant.exists()) {
                 grantRef.delete().await()
@@ -141,7 +140,7 @@ class AdminRepository(
                 .snapshots()
                 .map { snap ->
                     snap.toObjects(AdminUserProfile::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
-                        .sortedByDescending { it.coins }
+                        .sortedByDescending { it.walletBalancePaise + it.coins }
                 }
                 .catch { e ->
                     if (e is CancellationException) throw e
@@ -162,6 +161,70 @@ class AdminRepository(
                 .catch { e ->
                     if (e is CancellationException) throw e
                     logAdminFirestoreError(e as? Exception ?: Exception(e), AdminOpType.LIST, "catalogCategories")
+                    emit(emptyList())
+                }
+        )
+    }
+
+    fun observeAllServiceFiles(): Flow<List<AdminServiceFile>> = flow {
+        emitAll(
+            db.collection("serviceFiles")
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(AdminServiceFile::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedWith(compareBy<AdminServiceFile> { it.sortOrder }.thenBy { it.name.lowercase(Locale.US) })
+                }
+                .catch { e ->
+                    if (e is CancellationException) throw e
+                    logAdminFirestoreError(e as? Exception ?: Exception(e), AdminOpType.LIST, "serviceFiles")
+                    emit(emptyList())
+                }
+        )
+    }
+
+    fun observeAllServicePlans(): Flow<List<AdminServicePlan>> = flow {
+        emitAll(
+            db.collection("servicePlans")
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(AdminServicePlan::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                        .sortedWith(compareBy<AdminServicePlan> { it.sortOrder }.thenBy { it.name.lowercase(Locale.US) })
+                }
+                .catch { e ->
+                    if (e is CancellationException) throw e
+                    logAdminFirestoreError(e as? Exception ?: Exception(e), AdminOpType.LIST, "servicePlans")
+                    emit(emptyList())
+                }
+        )
+    }
+
+    fun observeAllServiceOrders(): Flow<List<AdminServiceOrder>> = flow {
+        emitAll(
+            db.collection("serviceOrders")
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(AdminServiceOrder::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                }
+                .catch { e ->
+                    if (e is CancellationException) throw e
+                    logAdminFirestoreError(e as? Exception ?: Exception(e), AdminOpType.LIST, "serviceOrders")
+                    emit(emptyList())
+                }
+        )
+    }
+
+    fun observeAllFundRequests(): Flow<List<AdminFundRequest>> = flow {
+        emitAll(
+            db.collection("fundRequests")
+                .orderBy("createdAt", Query.Direction.DESCENDING)
+                .snapshots()
+                .map { snap ->
+                    snap.toObjects(AdminFundRequest::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+                }
+                .catch { e ->
+                    if (e is CancellationException) throw e
+                    logAdminFirestoreError(e as? Exception ?: Exception(e), AdminOpType.LIST, "fundRequests")
                     emit(emptyList())
                 }
         )
@@ -300,6 +363,7 @@ class AdminRepository(
     suspend fun updateUserAccount(
         user: AdminUserProfile,
         newCoins: Long,
+        newWalletBalancePaise: Long,
         newPoints: Long,
         newLevel: Long,
         blocked: Boolean,
@@ -310,9 +374,11 @@ class AdminRepository(
         return try {
             requireUid()
             val safeCoins = newCoins.coerceIn(0L, 10_000_000L)
+            val safePaise = newWalletBalancePaise.coerceIn(0L, 1_000_000_000L)
             val safePoints = newPoints.coerceIn(0L, 10_000_000L)
             val safeLevel = newLevel.coerceIn(1L, 10L)
             val coinDelta = safeCoins - user.coins
+            val paiseDelta = safePaise - user.walletBalancePaise
             val pointsDelta = safePoints - user.points
 
             val userRef = db.collection("users").document(user.userId)
@@ -321,36 +387,53 @@ class AdminRepository(
                 userRef,
                 mapOf(
                     "coins" to safeCoins,
+                    "walletBalancePaise" to safePaise,
                     "points" to safePoints,
                     "level" to safeLevel,
                     "blocked" to blocked,
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             )
-            if (coinDelta != 0L || pointsDelta != 0L) {
+            if (coinDelta != 0L || pointsDelta != 0L || paiseDelta != 0L) {
                 val txRef = userRef.collection("transactions").document()
-                val note = reason.trim().ifBlank { "Wallet adjusted by Admin" }
+                val note = reason.trim().ifBlank { "Wallet updated by Admin" }
+                val inrAbs = kotlin.math.abs(paiseDelta / 100L)
                 batch.set(
                     txRef,
                     mapOf(
                         "userId" to user.userId,
-                        "txType" to if (coinDelta >= 0) "BONUS" else "SPEND",
-                        "title" to "Admin Adjustment",
-                        "description" to note.take(240),
+                        "txType" to when {
+                            paiseDelta > 0L -> "DEPOSIT"
+                            paiseDelta < 0L -> "SPEND"
+                            coinDelta >= 0L -> "BONUS"
+                            else -> "SPEND"
+                        },
+                        "title" to if (paiseDelta != 0L) "Wallet Balance Adjustment" else "Admin Adjustment",
+                        "description" to "$note (${formatInrFromPaise(safePaise)} balance)".take(240),
                         "coinDelta" to coinDelta.coerceIn(-1_000_000L, 1_000_000L),
                         "pointsDelta" to pointsDelta.coerceIn(-100_000L, 100_000L),
-                        "priceInr" to 0L,
+                        "priceInr" to inrAbs.coerceIn(0L, 5_000_000L),
                         "status" to "SUCCESSFUL",
                         "createdAt" to FieldValue.serverTimestamp()
                     )
                 )
                 val notifRef = userRef.collection("notifications").document()
+                val detail = buildString {
+                    append(note)
+                    if (paiseDelta != 0L) {
+                        val sign = if (paiseDelta > 0) "+" else "-"
+                        append(" • $sign${formatInrFromPaise(kotlin.math.abs(paiseDelta))}")
+                    }
+                    if (coinDelta != 0L) {
+                        append(" • ${if (coinDelta > 0) "+$coinDelta" else "$coinDelta"} coins")
+                    }
+                }
                 batch.set(
                     notifRef,
                     mapOf(
                         "userId" to user.userId,
-                        "title" to if (coinDelta >= 0) "Coins Credited!" else "Wallet Updated",
-                        "body" to "$note (${if (coinDelta >= 0) "+$coinDelta" else "$coinDelta"} coins)",
+                        "title" to if (paiseDelta > 0 || coinDelta > 0) "Wallet Credited!" else "Wallet Updated",
+                        "body" to detail.take(400),
                         "category" to "SYSTEM",
                         "read" to false,
                         "createdAt" to FieldValue.serverTimestamp()
@@ -362,8 +445,228 @@ class AdminRepository(
                 actorName = actorName,
                 action = "UPDATE_USER",
                 targetPath = path,
-                summary = "${user.displayName}: coins=$safeCoins, pts=$safePoints, lvl=$safeLevel, blocked=$blocked"
+                summary = "${user.displayName}: ${formatInrFromPaise(safePaise)}, coins=$safeCoins, blocked=$blocked"
             )
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.UPDATE, path)
+            Result.failure(e)
+        }
+    }
+
+    // --- SERVICE ORDERS & FUND REQUESTS ---
+
+    suspend fun updateServiceOrderStatus(
+        order: AdminServiceOrder,
+        newStatus: String,
+        adminNote: String,
+        refundWallet: Boolean,
+        actorName: String
+    ): Result<Unit> {
+        val path = "serviceOrders/${order.id}"
+        return try {
+            requireUid()
+            val cleanNote = adminNote.trim().take(300)
+            val shouldRefund = newStatus == "CANCELLED" &&
+                refundWallet &&
+                order.paymentMethod == "WALLET" &&
+                order.status != "CANCELLED"
+
+            db.runTransaction { tx ->
+                val orderRef = db.collection("serviceOrders").document(order.id)
+                val userRef = db.collection("users").document(order.userId)
+                val userSnap = if (shouldRefund) tx.get(userRef) else null
+
+                tx.update(
+                    orderRef,
+                    mapOf(
+                        "status" to newStatus,
+                        "adminNote" to cleanNote,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+
+                if (shouldRefund && userSnap != null && userSnap.exists()) {
+                    val currentPaise = userSnap.getLong("walletBalancePaise") ?: 0L
+                    val refundedPaise = (currentPaise + order.totalPricePaise).coerceAtMost(1_000_000_000L)
+                    tx.update(
+                        userRef,
+                        mapOf(
+                            "walletBalancePaise" to refundedPaise,
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    val txRef = userRef.collection("transactions").document()
+                    tx.set(
+                        txRef,
+                        mapOf(
+                            "userId" to order.userId,
+                            "txType" to "REFUND",
+                            "title" to "Order Refund: ${order.planName}".take(120),
+                            "description" to "Refunded ${formatInrFromPaise(order.totalPricePaise)} for cancelled order".take(240),
+                            "coinDelta" to 0L,
+                            "pointsDelta" to 0L,
+                            "priceInr" to (order.totalPricePaise / 100L).coerceIn(0L, 5_000_000L),
+                            "status" to "REFUNDED",
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                }
+
+                val notifRef = userRef.collection("notifications").document()
+                val statusLabel = newStatus.replace("_", " ")
+                val body = buildString {
+                    append("${order.planName} (Qty ${order.quantity}) is now $statusLabel.")
+                    if (shouldRefund) append(" ${formatInrFromPaise(order.totalPricePaise)} refunded to wallet.")
+                    if (cleanNote.isNotBlank()) append(" Note: $cleanNote")
+                }
+                tx.set(
+                    notifRef,
+                    mapOf(
+                        "userId" to order.userId,
+                        "title" to "Order $statusLabel",
+                        "body" to body.take(400),
+                        "category" to "ORDER",
+                        "read" to false,
+                        "createdAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            }.await()
+
+            recordAudit(
+                actorName = actorName,
+                action = "SERVICE_ORDER",
+                targetPath = path,
+                summary = "${order.planName} (${order.userName}) -> $newStatus${if (shouldRefund) " + refunded" else ""}"
+            )
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.UPDATE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun approveFundRequest(
+        request: AdminFundRequest,
+        adminNote: String,
+        actorName: String
+    ): Result<Unit> {
+        val path = "fundRequests/${request.id}"
+        return try {
+            requireUid()
+            if (request.status == "APPROVED") {
+                return Result.failure(IllegalStateException("Already approved."))
+            }
+            val cleanNote = adminNote.trim().ifBlank { "Verified UTR ${request.utrNumber}" }.take(300)
+
+            db.runTransaction { tx ->
+                val reqRef = db.collection("fundRequests").document(request.id)
+                val userRef = db.collection("users").document(request.userId)
+                val reqSnap = tx.get(reqRef)
+                if (reqSnap.getString("status") == "APPROVED") {
+                    return@runTransaction
+                }
+                val userSnap = tx.get(userRef)
+                val currentPaise = userSnap.getLong("walletBalancePaise") ?: 0L
+                val updatedPaise = (currentPaise + request.amountPaise).coerceAtMost(1_000_000_000L)
+
+                tx.update(
+                    reqRef,
+                    mapOf(
+                        "status" to "APPROVED",
+                        "adminNote" to cleanNote,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+                if (userSnap.exists()) {
+                    tx.update(
+                        userRef,
+                        mapOf(
+                            "walletBalancePaise" to updatedPaise,
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                }
+                val txRef = userRef.collection("transactions").document()
+                tx.set(
+                    txRef,
+                    mapOf(
+                        "userId" to request.userId,
+                        "txType" to "DEPOSIT",
+                        "title" to "Wallet Top-Up Approved",
+                        "description" to "Added ${formatInrFromPaise(request.amountPaise)} • UTR ${request.utrNumber}".take(240),
+                        "coinDelta" to 0L,
+                        "pointsDelta" to 0L,
+                        "priceInr" to (request.amountPaise / 100L).coerceIn(0L, 5_000_000L),
+                        "status" to "SUCCESSFUL",
+                        "createdAt" to FieldValue.serverTimestamp()
+                    )
+                )
+                val notifRef = userRef.collection("notifications").document()
+                tx.set(
+                    notifRef,
+                    mapOf(
+                        "userId" to request.userId,
+                        "title" to "Funds Added: ${formatInrFromPaise(request.amountPaise)}",
+                        "body" to "Your UPI deposit (UTR ${request.utrNumber}) was approved. New balance: ${formatInrFromPaise(updatedPaise)}.".take(400),
+                        "category" to "PURCHASE",
+                        "read" to false,
+                        "createdAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            }.await()
+
+            recordAudit(
+                actorName = actorName,
+                action = "APPROVE_DEPOSIT",
+                targetPath = path,
+                summary = "Approved ${formatInrFromPaise(request.amountPaise)} for ${request.userName} (UTR ${request.utrNumber})"
+            )
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.UPDATE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun rejectFundRequest(
+        request: AdminFundRequest,
+        adminNote: String,
+        actorName: String
+    ): Result<Unit> {
+        val path = "fundRequests/${request.id}"
+        return try {
+            requireUid()
+            val cleanNote = adminNote.trim().ifBlank { "Payment could not be verified" }.take(300)
+            val batch = db.batch()
+            batch.update(
+                db.collection("fundRequests").document(request.id),
+                mapOf(
+                    "status" to "REJECTED",
+                    "adminNote" to cleanNote,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            val notifRef = db.collection("users").document(request.userId).collection("notifications").document()
+            batch.set(
+                notifRef,
+                mapOf(
+                    "userId" to request.userId,
+                    "title" to "Deposit Request Rejected",
+                    "body" to "${formatInrFromPaise(request.amountPaise)} (UTR ${request.utrNumber}) was rejected. $cleanNote".take(400),
+                    "category" to "SYSTEM",
+                    "read" to false,
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.commit().await()
+            recordAudit(actorName, "REJECT_DEPOSIT", path, "Rejected ${formatInrFromPaise(request.amountPaise)} for ${request.userName}")
             Result.success(Unit)
         } catch (e: CancellationException) {
             throw e
@@ -500,7 +803,7 @@ class AdminRepository(
         }
     }
 
-    // --- CATALOG CATEGORIES, SERVICES & COIN PACKAGES ---
+    // --- CATALOG CATEGORIES, SERVICE FILES, SERVICE PLANS & COIN PACKAGES ---
 
     suspend fun saveCatalogCategory(
         existingId: String?,
@@ -517,8 +820,8 @@ class AdminRepository(
         return try {
             requireUid()
             val cleanName = name.trim()
-            val cleanSubtitle = subtitle.trim().ifBlank { "Trending packs" }.take(100)
-            val cleanDesc = description.trim().ifBlank { "Curated creator packs for $cleanName" }.take(240)
+            val cleanSubtitle = subtitle.trim().ifBlank { "Instant Services" }.take(100)
+            val cleanDesc = description.trim().ifBlank { "Explore custom $cleanName services" }.take(240)
             val cleanEmoji = emoji.trim().ifBlank { "✨" }.take(16)
             val cleanPhoto = photoUrl.trim().take(250_000)
             require(cleanName.length in 2..80) { "Category name must be 2-80 characters." }
@@ -578,35 +881,186 @@ class AdminRepository(
         }
     }
 
-    suspend fun seedDefaultCategories(existingIds: Set<String>, actorName: String): Result<Int> {
+    suspend fun saveServiceFile(
+        existingId: String?,
+        categoryId: String,
+        categoryName: String,
+        name: String,
+        subtitle: String,
+        emoji: String,
+        photoUrl: String,
+        sortOrder: Long,
+        active: Boolean,
+        actorName: String
+    ): Result<Unit> {
+        var path = "serviceFiles"
         return try {
             requireUid()
-            val defaults = listOf(
-                Triple("food", "Food", "🍔") to ("Trending hashtags" to "Mouth-watering foodie hashtags, recipe captions, and restaurant reel hooks."),
-                Triple("christmas", "Christmas", "🎄") to ("Trending hashtags" to "Festive holiday hashtags, cozy winter captions, and gift reel prompts."),
-                Triple("fashion", "Fashion", "👗") to ("Trending hashtags" to "Editorial style tags, OOTD captions, and aesthetic fashion creator bios."),
-                Triple("photography", "Photography", "📷") to ("Trending hashtags" to "Portrait, street, DSLR, and golden-hour photography tag packs."),
-                Triple("funny", "Funny", "😂") to ("Trending hashtags" to "Viral meme hashtags, witty one-liners, and relatable comedy reel ideas."),
-                Triple("travel", "Travel", "✈️") to ("Trending hashtags" to "Wanderlust hashtags, destination captions, and adventure story templates."),
-                Triple("fitness", "Fitness", "💪") to ("Trending hashtags" to "Gym motivation tags, workout captions, and transformation reel hooks."),
-                Triple("beauty", "Beauty", "💄") to ("Trending hashtags" to "Skincare routines, makeup tutorial tags, and glam captions."),
-                Triple("gaming", "Gaming", "🎮") to ("Trending hashtags" to "Esports highlights, stream bio templates, and viral gaming clip tags."),
-                Triple("technology", "Technology", "💻") to ("Trending hashtags" to "Gadget unboxing tags, coding reels, and tech reviewer captions."),
-                Triple("motivation", "Motivation", "🔥") to ("Trending hashtags" to "Mindset quotes, daily hustle hashtags, and inspiring creator bios."),
-                Triple("lifestyle", "Lifestyle", "🌿") to ("Trending hashtags" to "Aesthetic daily vlog tags, morning routine captions, and clean bios.")
+            val cleanName = name.trim()
+            val cleanCatId = categoryId.trim().take(80)
+            val cleanCatName = categoryName.trim().take(80)
+            require(cleanCatId.isNotBlank() && cleanCatName.isNotBlank()) { "Select a category first." }
+            require(cleanName.length in 2..100) { "File name must be 2-100 characters." }
+
+            val fields = mutableMapOf<String, Any>(
+                "categoryId" to cleanCatId,
+                "categoryName" to cleanCatName,
+                "name" to cleanName,
+                "subtitle" to subtitle.trim().take(160),
+                "emoji" to emoji.trim().ifBlank { "⚡" }.take(16),
+                "photoUrl" to photoUrl.trim().take(2048),
+                "sortOrder" to sortOrder.coerceIn(0L, 500L),
+                "active" to active,
+                "updatedAt" to FieldValue.serverTimestamp()
             )
+            if (existingId.isNullOrBlank()) {
+                val ref = db.collection("serviceFiles").document()
+                path = ref.path
+                fields["createdAt"] = FieldValue.serverTimestamp()
+                ref.set(fields).await()
+                recordAudit(actorName, "CREATE_FILE", path, "Added '$cleanName' under $cleanCatName")
+            } else {
+                val ref = db.collection("serviceFiles").document(existingId)
+                path = ref.path
+                ref.update(fields).await()
+                recordAudit(actorName, "UPDATE_FILE", path, "Updated '$cleanName'")
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.WRITE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteServiceFile(fileId: String, fileName: String, actorName: String): Result<Unit> {
+        val path = "serviceFiles/$fileId"
+        return try {
+            requireUid()
+            db.collection("serviceFiles").document(fileId).delete().await()
+            recordAudit(actorName, "DELETE_FILE", path, "Deleted file '$fileName'")
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.DELETE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun saveServicePlan(
+        existingId: String?,
+        categoryId: String,
+        categoryName: String,
+        fileId: String,
+        fileName: String,
+        name: String,
+        description: String,
+        photoUrl: String,
+        pricePer1kPaise: Long,
+        minQty: Long,
+        maxQty: Long,
+        inputHint: String,
+        presetTiers: List<String>,
+        sortOrder: Long,
+        active: Boolean,
+        actorName: String
+    ): Result<Unit> {
+        var path = "servicePlans"
+        return try {
+            requireUid()
+            val cleanName = name.trim()
+            require(categoryId.isNotBlank() && fileId.isNotBlank()) { "Choose a Category and File first." }
+            require(cleanName.length in 2..120) { "Plan name must be 2-120 characters." }
+            val safeMin = minQty.coerceIn(1L, 10_000_000L)
+            val safeMax = maxQty.coerceIn(safeMin, 100_000_000L)
+            val safePrice = pricePer1kPaise.coerceIn(1L, 100_000_000L)
+            val cleanTiers = presetTiers
+                .map { it.trim() }
+                .filter { it.matches(Regex("^\\d+:\\d{1,2}$")) }
+                .take(12)
+                .ifEmpty { listOf("100:0", "500:0", "1000:0", "2000:5", "5000:6", "10000:9") }
+
+            val fields = mutableMapOf<String, Any>(
+                "categoryId" to categoryId.trim().take(80),
+                "categoryName" to categoryName.trim().take(80),
+                "fileId" to fileId.trim().take(80),
+                "fileName" to fileName.trim().take(100),
+                "name" to cleanName,
+                "description" to description.trim().take(300),
+                "photoUrl" to photoUrl.trim().take(2048),
+                "pricePer1kPaise" to safePrice,
+                "minQty" to safeMin,
+                "maxQty" to safeMax,
+                "inputHint" to inputHint.trim().ifBlank { "Enter target link or username" }.take(120),
+                "presetTiers" to cleanTiers,
+                "sortOrder" to sortOrder.coerceIn(0L, 500L),
+                "active" to active,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            if (existingId.isNullOrBlank()) {
+                val ref = db.collection("servicePlans").document()
+                path = ref.path
+                fields["createdAt"] = FieldValue.serverTimestamp()
+                ref.set(fields).await()
+                recordAudit(actorName, "CREATE_PLAN", path, "Created plan '$cleanName' (${formatRatePer1k(safePrice)})")
+            } else {
+                val ref = db.collection("servicePlans").document(existingId)
+                path = ref.path
+                ref.update(fields).await()
+                recordAudit(actorName, "UPDATE_PLAN", path, "Updated plan '$cleanName' (${formatRatePer1k(safePrice)})")
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.WRITE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteServicePlan(planId: String, planName: String, actorName: String): Result<Unit> {
+        val path = "servicePlans/$planId"
+        return try {
+            requireUid()
+            db.collection("servicePlans").document(planId).delete().await()
+            recordAudit(actorName, "DELETE_PLAN", path, "Deleted plan '$planName'")
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logAdminFirestoreError(e, AdminOpType.DELETE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun seedSocialStarterCatalog(
+        existingCategoryIds: Set<String>,
+        existingFileIds: Set<String>,
+        existingPlanIds: Set<String>,
+        actorName: String
+    ): Result<Int> {
+        return try {
+            requireUid()
             val batch = db.batch()
             var added = 0
-            defaults.forEachIndexed { idx, (meta, copy) ->
+
+            val starterCategories = listOf(
+                Triple("instagram", "Instagram", "📸") to "Followers, Reel Views, Likes & Reach",
+                Triple("facebook", "Facebook", "📘") to "Page Followers, Likes & Video Views",
+                Triple("telegram", "Telegram", "✈️") to "Channel Members & Post Views",
+                Triple("youtube", "YouTube", "▶️") to "Views, Subscribers & Watch Hours"
+            )
+            starterCategories.forEachIndexed { idx, (meta, sub) ->
                 val (id, name, emoji) = meta
-                if (id !in existingIds) {
-                    val ref = db.collection("catalogCategories").document(id)
+                if (id !in existingCategoryIds) {
                     batch.set(
-                        ref,
+                        db.collection("catalogCategories").document(id),
                         mapOf(
                             "name" to name,
-                            "subtitle" to copy.first,
-                            "description" to copy.second,
+                            "subtitle" to sub,
+                            "description" to "Custom $name growth services controlled from Admin Panel",
                             "emoji" to emoji,
                             "photoUrl" to "",
                             "sortOrder" to (idx + 1).toLong(),
@@ -618,104 +1072,32 @@ class AdminRepository(
                     added++
                 }
             }
-            if (added > 0) {
-                batch.commit().await()
-                recordAudit(actorName, "SEED_CATEGORIES", "catalogCategories", "Imported $added default categories")
-            }
-            Result.success(added)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logAdminFirestoreError(e, AdminOpType.WRITE, "catalogCategories")
-            Result.failure(e)
-        }
-    }
 
-    suspend fun seedDefaultServices(existingIds: Set<String>, actorName: String): Result<Int> {
-        return try {
-            requireUid()
-            val starters = listOf(
-                AdminCatalogService(
-                    id = "christmas_30",
-                    categoryId = "christmas",
-                    categoryName = "Christmas",
-                    name = "30 Christmas",
-                    packType = "HASHTAGS",
-                    coinPrice = 3L,
-                    providerName = "Fame Maker",
-                    trending = true,
-                    published = true,
-                    contentLines = listOf(
-                        "#merrychristmas", "#christmastree", "#christmastime", "#christmasdecor",
-                        "#christmaseve", "#christmasgifts", "#christmaslights", "#christmasvibes",
-                        "#winterwonderland", "#holidayseason", "#festivevibes", "#cozychristmas"
-                    )
-                ),
-                AdminCatalogService(
-                    id = "food_30",
-                    categoryId = "food",
-                    categoryName = "Food",
-                    name = "30 Food",
-                    packType = "HASHTAGS",
-                    coinPrice = 3L,
-                    providerName = "Fame Maker",
-                    trending = true,
-                    published = true,
-                    contentLines = listOf(
-                        "#foodie", "#foodporn", "#instafood", "#foodphotography", "#yummy",
-                        "#delicious", "#foodstagram", "#foodlover", "#homemade", "#streetfood"
-                    )
-                ),
-                AdminCatalogService(
-                    id = "fashion_30",
-                    categoryId = "fashion",
-                    categoryName = "Fashion",
-                    name = "30 Fashion",
-                    packType = "HASHTAGS",
-                    coinPrice = 4L,
-                    providerName = "Fame Maker",
-                    trending = true,
-                    published = true,
-                    contentLines = listOf(
-                        "#fashion", "#ootd", "#styleinspo", "#streetstyle", "#fashionblogger",
-                        "#lookbook", "#aestheticoutfit", "#trendsetter", "#mensfashion", "#womenswear"
-                    )
-                ),
-                AdminCatalogService(
-                    id = "fitness_30",
-                    categoryId = "fitness",
-                    categoryName = "Fitness",
-                    name = "30 Fitness",
-                    packType = "HASHTAGS",
-                    coinPrice = 4L,
-                    providerName = "Fame Maker",
-                    trending = true,
-                    published = true,
-                    contentLines = listOf(
-                        "#fitness", "#gymmotivation", "#workout", "#fitlife", "#bodybuilding",
-                        "#calisthenics", "#healthylifestyle", "#gains", "#training", "#fitnessreels"
-                    )
-                )
+            data class StarterFile(val id: String, val catId: String, val catName: String, val name: String, val sub: String, val emoji: String, val order: Long)
+            val starterFiles = listOf(
+                StarterFile("ig_followers", "instagram", "Instagram", "Instagram Followers", "High-quality & guaranteed profiles", "👥", 1L),
+                StarterFile("ig_reel_views", "instagram", "Instagram", "Instagram Reel Views", "Superfast reel & dashboard views", "🎬", 2L),
+                StarterFile("ig_likes", "instagram", "Instagram", "Instagram Likes", "Instant real-looking post & reel likes", "❤️", 3L),
+                StarterFile("ig_reach", "instagram", "Instagram", "Instagram Reach & Impressions", "Boost explore & reel reach", "🚀", 4L),
+                StarterFile("ig_story_views", "instagram", "Instagram", "Instagram Story Views", "Fast active story viewers", "👁️", 5L),
+                StarterFile("ig_comments", "instagram", "Instagram", "Instagram Comments", "Custom & emoji comments", "💬", 6L),
+                StarterFile("fb_followers", "facebook", "Facebook", "Facebook Page Followers", "Page & profile followers", "👥", 1L),
+                StarterFile("tg_members", "telegram", "Telegram", "Telegram Channel Members", "Non-drop channel & group members", "📢", 1L),
+                StarterFile("yt_views", "youtube", "YouTube", "YouTube Video & Shorts Views", "High retention views", "▶️", 1L)
             )
-            val batch = db.batch()
-            var added = 0
-            starters.forEach { svc ->
-                if (svc.id !in existingIds) {
-                    val ref = db.collection("catalogServices").document(svc.id)
+            starterFiles.forEach { f ->
+                if (f.id !in existingFileIds) {
                     batch.set(
-                        ref,
+                        db.collection("serviceFiles").document(f.id),
                         mapOf(
-                            "categoryId" to svc.categoryId,
-                            "categoryName" to svc.categoryName,
-                            "name" to svc.name,
-                            "packType" to svc.packType,
-                            "itemCount" to svc.contentLines.size.toLong(),
-                            "coinPrice" to svc.coinPrice,
-                            "providerName" to svc.providerName,
-                            "photoUrl" to svc.photoUrl,
-                            "trending" to svc.trending,
-                            "published" to svc.published,
-                            "contentLines" to svc.contentLines,
+                            "categoryId" to f.catId,
+                            "categoryName" to f.catName,
+                            "name" to f.name,
+                            "subtitle" to f.sub,
+                            "emoji" to f.emoji,
+                            "photoUrl" to "",
+                            "sortOrder" to f.order,
+                            "active" to true,
                             "createdAt" to FieldValue.serverTimestamp(),
                             "updatedAt" to FieldValue.serverTimestamp()
                         )
@@ -723,106 +1105,86 @@ class AdminRepository(
                     added++
                 }
             }
+
+            data class StarterPlan(
+                val id: String, val catId: String, val catName: String,
+                val fileId: String, val fileName: String, val name: String,
+                val desc: String, val pricePaise: Long, val minQty: Long, val maxQty: Long,
+                val hint: String, val tiers: List<String>, val order: Long
+            )
+            val starterPlans = listOf(
+                StarterPlan(
+                    "plan_ig_reel_superfast", "instagram", "Instagram", "ig_reel_views", "Instagram Reel Views",
+                    "IG Reel Views - Superfast ⚡", "Instant start • High speed delivery", 100L, 100L, 100_000L,
+                    "Paste your Instagram Reel link", listOf("100:0", "500:0", "1000:0", "2000:5", "5000:6", "10000:9", "20000:10"), 1L
+                ),
+                StarterPlan(
+                    "plan_ig_reel_dashboard", "instagram", "Instagram", "ig_reel_views", "Instagram Reel Views",
+                    "IG Reel Views 🚀 : Reel+Dashboard", "Shows in Instagram insights & dashboard", 200L, 100L, 100_000L,
+                    "Paste your Instagram Reel link", listOf("100:0", "500:0", "1000:0", "2000:5", "5000:6", "10000:9"), 2L
+                ),
+                StarterPlan(
+                    "plan_ig_reel_cheapest", "instagram", "Instagram", "ig_reel_views", "Instagram Reel Views",
+                    "IG Reel Views Cheapest", "Budget-friendly fast views", 80L, 100L, 100_000L,
+                    "Paste your Instagram Reel link", listOf("500:0", "1000:0", "2000:5", "5000:6", "10000:9"), 3L
+                ),
+                StarterPlan(
+                    "plan_ig_followers_hq", "instagram", "Instagram", "ig_followers", "Instagram Followers",
+                    "IG Followers HQ • Non-Drop", "30-day refill guarantee • Real look", 20_000L, 50L, 10_000L,
+                    "Enter Instagram Username or Profile Link", listOf("100:0", "500:0", "1000:0", "2000:5", "5000:6", "10000:9"), 1L
+                ),
+                StarterPlan(
+                    "plan_ig_likes_fast", "instagram", "Instagram", "ig_likes", "Instagram Likes",
+                    "IG Likes - Superfast ❤️", "Instant delivery on posts & reels", 2_500L, 50L, 50_000L,
+                    "Paste your Instagram Post/Reel link", listOf("100:0", "500:0", "1000:0", "2000:5", "5000:8"), 1L
+                ),
+                StarterPlan(
+                    "plan_ig_reach_boost", "instagram", "Instagram", "ig_reach", "Instagram Reach & Impressions",
+                    "IG Reach + Impressions 🚀", "Boost explore reach & profile visits", 1_500L, 100L, 50_000L,
+                    "Paste your Instagram Post/Reel link", listOf("500:0", "1000:0", "2000:5", "5000:8", "10000:10"), 1L
+                ),
+                StarterPlan(
+                    "plan_yt_views_hq", "youtube", "YouTube", "yt_views", "YouTube Video & Shorts Views",
+                    "YouTube Views • High Retention", "Safe organic-style delivery", 15_000L, 100L, 50_000L,
+                    "Paste your YouTube Video or Shorts link", listOf("100:0", "500:0", "1000:0", "2000:5", "5000:8"), 1L
+                )
+            )
+            starterPlans.forEach { p ->
+                if (p.id !in existingPlanIds) {
+                    batch.set(
+                        db.collection("servicePlans").document(p.id),
+                        mapOf(
+                            "categoryId" to p.catId,
+                            "categoryName" to p.catName,
+                            "fileId" to p.fileId,
+                            "fileName" to p.fileName,
+                            "name" to p.name,
+                            "description" to p.desc,
+                            "photoUrl" to "",
+                            "pricePer1kPaise" to p.pricePaise,
+                            "minQty" to p.minQty,
+                            "maxQty" to p.maxQty,
+                            "inputHint" to p.hint,
+                            "presetTiers" to p.tiers,
+                            "sortOrder" to p.order,
+                            "active" to true,
+                            "createdAt" to FieldValue.serverTimestamp(),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    added++
+                }
+            }
+
             if (added > 0) {
                 batch.commit().await()
-                recordAudit(actorName, "SEED_SERVICES", "catalogServices", "Imported $added starter services")
+                recordAudit(actorName, "SEED_SOCIAL_CATALOG", "catalogCategories", "Seeded $added social categories, files & plans")
             }
             Result.success(added)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logAdminFirestoreError(e, AdminOpType.WRITE, "catalogServices")
-            Result.failure(e)
-        }
-    }
-
-    suspend fun saveCatalogService(
-        existingId: String?,
-        categoryId: String,
-        categoryName: String,
-        name: String,
-        packType: String,
-        coinPrice: Long,
-        providerName: String,
-        photoUrl: String,
-        trending: Boolean,
-        published: Boolean,
-        contentLines: List<String>,
-        actorName: String
-    ): Result<Unit> {
-        var path = "catalogServices"
-        return try {
-            requireUid()
-            val cleanName = name.trim()
-            val cleanCategoryId = categoryId.trim().ifBlank { "general" }.take(60)
-            val cleanCategoryName = categoryName.trim().ifBlank { "General" }.take(60)
-            val cleanProvider = providerName.trim().ifBlank { "Fame Maker" }.take(100)
-            val cleanPhoto = photoUrl.trim().take(250_000)
-            val cleanLines = contentLines.map { it.trim() }.filter { it.isNotBlank() }.take(60)
-            require(cleanName.length in 2..120) { "Service name must be 2-120 characters." }
-            require(cleanLines.isNotEmpty()) { "Enter at least one line of content." }
-            if (existingId.isNullOrBlank()) {
-                val ref = db.collection("catalogServices").document()
-                path = ref.path
-                ref.set(
-                    mapOf(
-                        "categoryId" to cleanCategoryId,
-                        "categoryName" to cleanCategoryName,
-                        "name" to cleanName,
-                        "packType" to packType,
-                        "itemCount" to cleanLines.size.toLong(),
-                        "coinPrice" to coinPrice.coerceIn(0L, 100_000L),
-                        "providerName" to cleanProvider,
-                        "photoUrl" to cleanPhoto,
-                        "trending" to trending,
-                        "published" to published,
-                        "contentLines" to cleanLines,
-                        "createdAt" to FieldValue.serverTimestamp(),
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
-                recordAudit(actorName, "CREATE_SERVICE", path, "Published '$cleanName' by $cleanProvider")
-            } else {
-                val ref = db.collection("catalogServices").document(existingId)
-                path = ref.path
-                ref.update(
-                    mapOf(
-                        "categoryId" to cleanCategoryId,
-                        "categoryName" to cleanCategoryName,
-                        "name" to cleanName,
-                        "packType" to packType,
-                        "itemCount" to cleanLines.size.toLong(),
-                        "coinPrice" to coinPrice.coerceIn(0L, 100_000L),
-                        "providerName" to cleanProvider,
-                        "photoUrl" to cleanPhoto,
-                        "trending" to trending,
-                        "published" to published,
-                        "contentLines" to cleanLines,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
-                recordAudit(actorName, "UPDATE_SERVICE", path, "Updated '$cleanName' ($coinPrice coins)")
-            }
-            Result.success(Unit)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logAdminFirestoreError(e, AdminOpType.WRITE, path)
-            Result.failure(e)
-        }
-    }
-
-    suspend fun deleteCatalogService(serviceId: String, serviceName: String, actorName: String): Result<Unit> {
-        val path = "catalogServices/$serviceId"
-        return try {
-            requireUid()
-            db.collection("catalogServices").document(serviceId).delete().await()
-            recordAudit(actorName, "DELETE_SERVICE", path, "Deleted '$serviceName'")
-            Result.success(Unit)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logAdminFirestoreError(e, AdminOpType.DELETE, path)
+            logAdminFirestoreError(e, AdminOpType.WRITE, "catalogCategories")
             Result.failure(e)
         }
     }
@@ -891,7 +1253,7 @@ class AdminRepository(
         }
     }
 
-    // --- GLOBAL APP CONFIG ---
+    // --- GLOBAL APP CONFIG & UPI PAYMENT SETTINGS ---
 
     suspend fun saveAppConfig(config: AdminAppConfig, actorName: String): Result<Unit> {
         val path = "appConfig/global"
@@ -907,6 +1269,12 @@ class AdminRepository(
                     "referralBonusCoins" to config.referralBonusCoins.coerceIn(0L, 100_000L),
                     "spinEnabled" to config.spinEnabled,
                     "dailyRewardsEnabled" to config.dailyRewardsEnabled,
+                    "upiId" to config.upiId.trim().take(100),
+                    "upiMerchantName" to config.upiMerchantName.trim().ifBlank { "Fame Maker" }.take(100),
+                    "paymentQrUrl" to config.paymentQrUrl.trim().take(2048),
+                    "paymentInstructions" to config.paymentInstructions.trim().take(500),
+                    "minDepositInr" to config.minDepositInr.coerceIn(1L, 100_000L),
+                    "supportLink" to config.supportLink.trim().take(300),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
             ).await()
@@ -914,7 +1282,7 @@ class AdminRepository(
                 actorName,
                 "UPDATE_CONFIG",
                 path,
-                "maintenance=${config.maintenanceMode}, welcome=${config.welcomeCoins}, spin=${config.spinEnabled}"
+                "Updated live config (UPI=${config.upiId.ifBlank { "unset" }}, maintenance=${config.maintenanceMode})"
             )
             Result.success(Unit)
         } catch (e: CancellationException) {

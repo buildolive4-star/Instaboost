@@ -7,12 +7,17 @@ import com.example.admin.data.AdminAuditLog
 import com.example.admin.data.AdminCatalogCategory
 import com.example.admin.data.AdminCatalogService
 import com.example.admin.data.AdminCoinPackage
+import com.example.admin.data.AdminFundRequest
 import com.example.admin.data.AdminOrderRecord
 import com.example.admin.data.AdminRepository
+import com.example.admin.data.AdminServiceFile
+import com.example.admin.data.AdminServiceOrder
+import com.example.admin.data.AdminServicePlan
 import com.example.admin.data.AdminSession
 import com.example.admin.data.AdminStaffEntry
 import com.example.admin.data.AdminSupportTicket
 import com.example.admin.data.AdminUserProfile
+import com.example.admin.data.formatInrFromPaise
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -44,6 +49,18 @@ class AdminViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     val categories: StateFlow<List<AdminCatalogCategory>> = repository.observeAllCategories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    val serviceFiles: StateFlow<List<AdminServiceFile>> = repository.observeAllServiceFiles()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    val servicePlans: StateFlow<List<AdminServicePlan>> = repository.observeAllServicePlans()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    val serviceOrders: StateFlow<List<AdminServiceOrder>> = repository.observeAllServiceOrders()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    val fundRequests: StateFlow<List<AdminFundRequest>> = repository.observeAllFundRequests()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     val services: StateFlow<List<AdminCatalogService>> = repository.observeAllServices()
@@ -78,6 +95,10 @@ class AdminViewModel(
         _toast.value = null
     }
 
+    fun showToast(message: String) {
+        _toast.value = message
+    }
+
     fun selectUser(userId: String?) {
         _selectedUserId.value = userId
     }
@@ -85,6 +106,7 @@ class AdminViewModel(
     fun updateUser(
         user: AdminUserProfile,
         coins: Long,
+        walletBalancePaise: Long,
         points: Long,
         level: Long,
         blocked: Boolean,
@@ -93,12 +115,51 @@ class AdminViewModel(
     ) {
         viewModelScope.launch {
             _busy.value = true
-            repository.updateUserAccount(user, coins, points, level, blocked, reason, session.displayName)
+            repository.updateUserAccount(
+                user, coins, walletBalancePaise, points, level, blocked, reason, session.displayName
+            ).onSuccess {
+                _toast.value = "Updated ${user.displayName}"
+                onDone()
+            }.onFailure { _toast.value = it.localizedMessage ?: "Failed to update user" }
+            _busy.value = false
+        }
+    }
+
+    fun updateServiceOrderStatus(
+        order: AdminServiceOrder,
+        newStatus: String,
+        adminNote: String,
+        refundWallet: Boolean = false
+    ) {
+        viewModelScope.launch {
+            _busy.value = true
+            repository.updateServiceOrderStatus(order, newStatus, adminNote, refundWallet, session.displayName)
                 .onSuccess {
-                    _toast.value = "Updated ${user.displayName}"
-                    onDone()
+                    _toast.value = "Order updated to ${newStatus.replace("_", " ")}"
                 }
-                .onFailure { _toast.value = it.localizedMessage ?: "Failed to update user" }
+                .onFailure { _toast.value = it.localizedMessage ?: "Failed to update order" }
+            _busy.value = false
+        }
+    }
+
+    fun approveFundRequest(request: AdminFundRequest, adminNote: String = "") {
+        viewModelScope.launch {
+            _busy.value = true
+            repository.approveFundRequest(request, adminNote, session.displayName)
+                .onSuccess {
+                    _toast.value = "Approved & credited ${formatInrFromPaise(request.amountPaise)}!"
+                }
+                .onFailure { _toast.value = it.localizedMessage ?: "Approval failed" }
+            _busy.value = false
+        }
+    }
+
+    fun rejectFundRequest(request: AdminFundRequest, adminNote: String = "") {
+        viewModelScope.launch {
+            _busy.value = true
+            repository.rejectFundRequest(request, adminNote, session.displayName)
+                .onSuccess { _toast.value = "Deposit request rejected" }
+                .onFailure { _toast.value = it.localizedMessage ?: "Reject failed" }
             _busy.value = false
         }
     }
@@ -165,7 +226,7 @@ class AdminViewModel(
             repository.saveCatalogCategory(
                 existingId, name, subtitle, description, emoji, photoUrl, sortOrder, active, session.displayName
             ).onSuccess {
-                _toast.value = if (existingId == null) "Category added!" else "Category updated!"
+                _toast.value = if (existingId == null) "Category created!" else "Category updated!"
                 onDone()
             }.onFailure { _toast.value = it.localizedMessage ?: "Failed to save category" }
             _busy.value = false
@@ -176,71 +237,98 @@ class AdminViewModel(
         viewModelScope.launch {
             _busy.value = true
             repository.deleteCatalogCategory(category.id, category.name, session.displayName)
-                .onSuccess { _toast.value = "Deleted category '${category.name}'" }
+                .onSuccess { _toast.value = "Deleted '${category.name}'" }
                 .onFailure { _toast.value = it.localizedMessage ?: "Delete failed" }
             _busy.value = false
         }
     }
 
-    fun seedDefaultCategories() {
-        viewModelScope.launch {
-            _busy.value = true
-            val existing = categories.value.map { it.id }.toSet()
-            repository.seedDefaultCategories(existing, session.displayName)
-                .onSuccess { added ->
-                    _toast.value = if (added > 0) "Loaded $added default categories for editing!" else "All default categories already loaded"
-                }
-                .onFailure { _toast.value = it.localizedMessage ?: "Failed to load categories" }
-            _busy.value = false
-        }
-    }
-
-    fun seedDefaultServices() {
-        viewModelScope.launch {
-            _busy.value = true
-            val existing = services.value.map { it.id }.toSet()
-            repository.seedDefaultServices(existing, session.displayName)
-                .onSuccess { added ->
-                    _toast.value = if (added > 0) "Loaded $added starter services for editing!" else "Starter services already loaded"
-                }
-                .onFailure { _toast.value = it.localizedMessage ?: "Failed to load services" }
-            _busy.value = false
-        }
-    }
-
-    fun saveService(
+    fun saveServiceFile(
         existingId: String?,
         categoryId: String,
         categoryName: String,
         name: String,
-        packType: String,
-        coinPrice: Long,
-        providerName: String,
+        subtitle: String,
+        emoji: String,
         photoUrl: String,
-        trending: Boolean,
-        published: Boolean,
-        contentLines: List<String>,
+        sortOrder: Long,
+        active: Boolean,
         onDone: () -> Unit = {}
     ) {
         viewModelScope.launch {
             _busy.value = true
-            repository.saveCatalogService(
-                existingId, categoryId, categoryName, name, packType,
-                coinPrice, providerName, photoUrl, trending, published, contentLines, session.displayName
+            repository.saveServiceFile(
+                existingId, categoryId, categoryName, name, subtitle, emoji, photoUrl, sortOrder, active, session.displayName
             ).onSuccess {
-                _toast.value = if (existingId == null) "Service published!" else "Service updated!"
+                _toast.value = if (existingId == null) "Service file added!" else "Service file updated!"
                 onDone()
-            }.onFailure { _toast.value = it.localizedMessage ?: "Failed to save service" }
+            }.onFailure { _toast.value = it.localizedMessage ?: "Failed to save file" }
             _busy.value = false
         }
     }
 
-    fun deleteService(service: AdminCatalogService) {
+    fun deleteServiceFile(file: AdminServiceFile) {
         viewModelScope.launch {
             _busy.value = true
-            repository.deleteCatalogService(service.id, service.name, session.displayName)
-                .onSuccess { _toast.value = "Deleted '${service.name}'" }
+            repository.deleteServiceFile(file.id, file.name, session.displayName)
+                .onSuccess { _toast.value = "Deleted '${file.name}'" }
                 .onFailure { _toast.value = it.localizedMessage ?: "Delete failed" }
+            _busy.value = false
+        }
+    }
+
+    fun saveServicePlan(
+        existingId: String?,
+        categoryId: String,
+        categoryName: String,
+        fileId: String,
+        fileName: String,
+        name: String,
+        description: String,
+        photoUrl: String,
+        pricePer1kPaise: Long,
+        minQty: Long,
+        maxQty: Long,
+        inputHint: String,
+        presetTiers: List<String>,
+        sortOrder: Long,
+        active: Boolean,
+        onDone: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _busy.value = true
+            repository.saveServicePlan(
+                existingId, categoryId, categoryName, fileId, fileName, name, description,
+                photoUrl, pricePer1kPaise, minQty, maxQty, inputHint, presetTiers, sortOrder, active, session.displayName
+            ).onSuccess {
+                _toast.value = if (existingId == null) "Service plan published!" else "Service plan updated!"
+                onDone()
+            }.onFailure { _toast.value = it.localizedMessage ?: "Failed to save plan" }
+            _busy.value = false
+        }
+    }
+
+    fun deleteServicePlan(plan: AdminServicePlan) {
+        viewModelScope.launch {
+            _busy.value = true
+            repository.deleteServicePlan(plan.id, plan.name, session.displayName)
+                .onSuccess { _toast.value = "Deleted '${plan.name}'" }
+                .onFailure { _toast.value = it.localizedMessage ?: "Delete failed" }
+            _busy.value = false
+        }
+    }
+
+    fun seedSocialStarterCatalog() {
+        viewModelScope.launch {
+            _busy.value = true
+            repository.seedSocialStarterCatalog(
+                existingCategoryIds = categories.value.map { it.id }.toSet(),
+                existingFileIds = serviceFiles.value.map { it.id }.toSet(),
+                existingPlanIds = servicePlans.value.map { it.id }.toSet(),
+                actorName = session.displayName
+            ).onSuccess { added ->
+                _toast.value = if (added > 0) "Loaded $added social categories, files & plans!" else "Starter social catalog already loaded"
+            }.onFailure { _toast.value = it.localizedMessage ?: "Failed to seed catalog" }
             _busy.value = false
         }
     }
@@ -283,7 +371,7 @@ class AdminViewModel(
         viewModelScope.launch {
             _busy.value = true
             repository.saveAppConfig(config, session.displayName)
-                .onSuccess { _toast.value = "App settings updated live!" }
+                .onSuccess { _toast.value = "Settings published live!" }
                 .onFailure { _toast.value = it.localizedMessage ?: "Failed to save settings" }
             _busy.value = false
         }

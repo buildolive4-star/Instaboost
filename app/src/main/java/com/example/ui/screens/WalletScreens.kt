@@ -61,6 +61,7 @@ import com.example.data.CoinPackageItem
 import com.example.data.DefaultCatalog
 import com.example.data.UserProfile
 import com.example.data.WalletTransaction
+import com.example.data.formatInrFromPaise
 import com.example.ui.components.BlueStarCoin
 import com.example.ui.components.BonusCoinChip
 import com.example.ui.components.CoinStackTile
@@ -89,6 +90,7 @@ fun WalletScreen(
     packages: List<CoinPackageItem>,
     busy: Boolean,
     onPurchasePackage: (CoinPackageItem, (Long) -> Unit) -> Unit,
+    onOpenAddFunds: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
@@ -140,6 +142,54 @@ fun WalletScreen(
                             onClick = onOpenSettings,
                             testTag = "wallet_settings_btn"
                         )
+                    }
+                }
+            }
+
+            // INR Service Wallet Card (for Service Orders & UPI Deposits)
+            item {
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = Color(0xFF111827),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "INR Service Wallet",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xFF9CA3AF)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = formatInrFromPaise(profile.walletBalancePaise),
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFFFACC15)
+                            )
+                            Text(
+                                text = "Use for instant social service orders",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFD1D5DB)
+                            )
+                        }
+                        Button(
+                            onClick = onOpenAddFunds,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFACC15),
+                                contentColor = Color(0xFF111827)
+                            ),
+                            modifier = Modifier.testTag("wallet_add_funds_btn")
+                        ) {
+                            Text("Add Funds", fontWeight = FontWeight.ExtraBold)
+                        }
                     }
                 }
             }

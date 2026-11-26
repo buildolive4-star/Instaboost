@@ -77,18 +77,23 @@ import com.example.firebase.configureAppCheck
 import com.example.firebase.signOutUser
 import com.example.ui.components.FloatingMascotCompanion
 import com.example.ui.screens.AccountScreen
+import com.example.ui.screens.AddFundsScreen
 import com.example.ui.screens.AdminPanelScreen
 import com.example.ui.screens.AiStudioScreen
 import com.example.ui.screens.AuthOnboardingScreen
 import com.example.ui.screens.CategoryDetailsScreen
+import com.example.ui.screens.CategoryFilesScreen
 import com.example.ui.screens.CreateOrderScreen
 import com.example.ui.screens.DailyRewardsScreen
 import com.example.ui.screens.FavoritesScreen
+import com.example.ui.screens.FilePlansScreen
 import com.example.ui.screens.HelpSupportScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.MyOrdersScreen
 import com.example.ui.screens.NotificationsScreen
 import com.example.ui.screens.ReferEarnScreen
+import com.example.ui.screens.SelectQuantityOrderScreen
+import com.example.ui.screens.ServiceOrdersScreen
 import com.example.ui.screens.ServicesScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SpinWheelScreen
@@ -110,6 +115,11 @@ private object Routes {
     const val ACCOUNT = "account"
     const val CATEGORY_DETAILS = "category_details/{categoryId}"
     const val CREATE_ORDER = "create_order/{serviceId}"
+    const val CATEGORY_FILES = "category_files/{categoryId}"
+    const val FILE_PLANS = "file_plans/{fileId}"
+    const val PLAN_CHECKOUT = "plan_checkout/{planId}"
+    const val SERVICE_ORDERS = "service_orders"
+    const val ADD_FUNDS = "add_funds"
     const val WALLET_HISTORY = "wallet_history"
     const val ORDERS = "orders"
     const val FAVORITES = "favorites"
@@ -124,6 +134,9 @@ private object Routes {
 
     fun categoryDetails(id: String) = "category_details/$id"
     fun createOrder(id: String) = "create_order/$id"
+    fun categoryFiles(id: String) = "category_files/$id"
+    fun filePlans(id: String) = "file_plans/$id"
+    fun planCheckout(id: String) = "plan_checkout/$id"
 }
 
 private data class BottomTab(
@@ -217,6 +230,10 @@ private fun AuthenticatedAppShell(
     val notifications by viewModel.notifications.collectAsStateWithLifecycle()
     val supportTickets by viewModel.supportTickets.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val serviceFiles by viewModel.serviceFiles.collectAsStateWithLifecycle()
+    val servicePlans by viewModel.servicePlans.collectAsStateWithLifecycle()
+    val myServiceOrders by viewModel.myServiceOrders.collectAsStateWithLifecycle()
+    val myFundRequests by viewModel.myFundRequests.collectAsStateWithLifecycle()
     val services by viewModel.catalogServices.collectAsStateWithLifecycle()
     val coinPackages by viewModel.coinPackages.collectAsStateWithLifecycle()
     val appConfig by viewModel.appConfig.collectAsStateWithLifecycle()
@@ -303,13 +320,17 @@ private fun AuthenticatedAppShell(
                             ServicesScreen(
                                 profile = profile,
                                 categories = categories,
-                                services = services,
+                                serviceFiles = serviceFiles,
+                                serviceOrdersCount = myServiceOrders.size,
+                                appConfig = appConfig,
                                 onCategorySelected = { catId ->
-                                    navController.navigate(Routes.categoryDetails(catId))
+                                    navController.navigate(Routes.categoryFiles(catId))
                                 },
+                                onOpenServiceOrders = { navController.navigate(Routes.SERVICE_ORDERS) },
+                                onOpenAddFunds = { navController.navigate(Routes.ADD_FUNDS) },
                                 onOpenAiStudio = { navController.navigate(Routes.AI_STUDIO) },
                                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
-                                onOpenWallet = { navigateToTab(Routes.WALLET) }
+                                onShowMessage = { viewModel.showToast(it) }
                             )
                         }
 
@@ -321,6 +342,7 @@ private fun AuthenticatedAppShell(
                                 onPurchasePackage = { pkg, onSuccess ->
                                     viewModel.purchasePackage(pkg, onSuccess)
                                 },
+                                onOpenAddFunds = { navController.navigate(Routes.ADD_FUNDS) },
                                 onOpenHistory = { navController.navigate(Routes.WALLET_HISTORY) },
                                 onOpenSettings = { navController.navigate(Routes.SETTINGS) }
                             )
@@ -334,7 +356,7 @@ private fun AuthenticatedAppShell(
                                 appConfig = appConfig,
                                 unreadNotifs = unreadNotifs,
                                 onOpenCategory = { catId ->
-                                    navController.navigate(Routes.categoryDetails(catId))
+                                    navController.navigate(Routes.categoryFiles(catId))
                                 },
                                 onOpenService = { svc ->
                                     navController.navigate(Routes.createOrder(svc.id))
@@ -344,7 +366,7 @@ private fun AuthenticatedAppShell(
                                 onOpenDailyRewards = { navController.navigate(Routes.DAILY_REWARDS) },
                                 onOpenSpinWheel = { navController.navigate(Routes.SPIN_WHEEL) },
                                 onOpenAiStudio = { navController.navigate(Routes.AI_STUDIO) },
-                                onOpenOrders = { navController.navigate(Routes.ORDERS) },
+                                onOpenOrders = { navController.navigate(Routes.SERVICE_ORDERS) },
                                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                                 onClaimDailyQuick = { viewModel.claimDailyReward() }
@@ -356,8 +378,8 @@ private fun AuthenticatedAppShell(
                                 profile = profile,
                                 isAdmin = viewModel.isAdmin,
                                 unreadNotifs = unreadNotifs,
-                                onOpenOrders = { navController.navigate(Routes.ORDERS) },
-                                onOpenPayments = { navController.navigate(Routes.WALLET_HISTORY) },
+                                onOpenOrders = { navController.navigate(Routes.SERVICE_ORDERS) },
+                                onOpenPayments = { navController.navigate(Routes.ADD_FUNDS) },
                                 onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
                                 onOpenDailyRewards = { navController.navigate(Routes.DAILY_REWARDS) },
                                 onOpenSpinWheel = { navController.navigate(Routes.SPIN_WHEEL) },
@@ -370,6 +392,101 @@ private fun AuthenticatedAppShell(
                                 onLogout = {
                                     signOutUser(credentialManager, scope, onSignOutComplete = onSignedOut)
                                 }
+                            )
+                        }
+
+                        composable(Routes.CATEGORY_FILES) { backStack ->
+                            val categoryId = backStack.arguments?.getString("categoryId").orEmpty()
+                            CategoryFilesScreen(
+                                categoryId = categoryId,
+                                profile = profile,
+                                categories = categories,
+                                serviceFiles = serviceFiles,
+                                servicePlans = servicePlans,
+                                onBack = { navController.popBackStack() },
+                                onFileSelected = { fileId ->
+                                    navController.navigate(Routes.filePlans(fileId))
+                                },
+                                onOpenAddFunds = { navController.navigate(Routes.ADD_FUNDS) }
+                            )
+                        }
+
+                        composable(Routes.FILE_PLANS) { backStack ->
+                            val fileId = backStack.arguments?.getString("fileId").orEmpty()
+                            FilePlansScreen(
+                                fileId = fileId,
+                                profile = profile,
+                                serviceFiles = serviceFiles,
+                                servicePlans = servicePlans,
+                                onBack = { navController.popBackStack() },
+                                onPlanSelected = { planId ->
+                                    navController.navigate(Routes.planCheckout(planId))
+                                },
+                                onOpenAddFunds = { navController.navigate(Routes.ADD_FUNDS) }
+                            )
+                        }
+
+                        composable(Routes.PLAN_CHECKOUT) { backStack ->
+                            val planId = backStack.arguments?.getString("planId").orEmpty()
+                            val selectedPlan = servicePlans.firstOrNull { it.id == planId }
+                            if (selectedPlan != null) {
+                                SelectQuantityOrderScreen(
+                                    plan = selectedPlan,
+                                    profile = profile,
+                                    appConfig = appConfig,
+                                    busy = busy,
+                                    onBack = { navController.popBackStack() },
+                                    onOpenAddFunds = { navController.navigate(Routes.ADD_FUNDS) },
+                                    onOrderPlaced = {
+                                        navController.navigate(Routes.SERVICE_ORDERS) {
+                                            popUpTo(Routes.SERVICES) { inclusive = false }
+                                        }
+                                    },
+                                    onShowMessage = { viewModel.showToast(it) },
+                                    onPlaceOrder = { p, link, qty, totalPaise, method, utr, proof, onLowBal, onOk ->
+                                        viewModel.placeServiceOrder(
+                                            plan = p,
+                                            targetLink = link,
+                                            quantity = qty,
+                                            totalPricePaise = totalPaise,
+                                            paymentMethod = method,
+                                            utrNumber = utr,
+                                            paymentProofUrl = proof,
+                                            onInsufficientBalance = onLowBal,
+                                            onSuccess = onOk
+                                        )
+                                    }
+                                )
+                            } else {
+                                LaunchedEffect(Unit) { navController.popBackStack() }
+                            }
+                        }
+
+                        composable(Routes.SERVICE_ORDERS) {
+                            ServiceOrdersScreen(
+                                profile = profile,
+                                orders = myServiceOrders,
+                                onBack = { navController.popBackStack() },
+                                onOpenAddFunds = { navController.navigate(Routes.ADD_FUNDS) },
+                                onExploreServices = {
+                                    navController.popBackStack(Routes.SERVICES, inclusive = false)
+                                    navigateToTab(Routes.SERVICES)
+                                },
+                                onShowMessage = { viewModel.showToast(it) }
+                            )
+                        }
+
+                        composable(Routes.ADD_FUNDS) {
+                            AddFundsScreen(
+                                profile = profile,
+                                appConfig = appConfig,
+                                fundRequests = myFundRequests,
+                                busy = busy,
+                                onBack = { navController.popBackStack() },
+                                onSubmitFundRequest = { amtPaise, utr, proof, onOk ->
+                                    viewModel.submitFundRequest(amtPaise, utr, proof, onOk)
+                                },
+                                onShowMessage = { viewModel.showToast(it) }
                             )
                         }
 

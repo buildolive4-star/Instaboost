@@ -1,22 +1,13 @@
 package com.example.admin.ui
 
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
-import android.util.Base64
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,12 +23,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -56,124 +44,122 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.example.admin.data.AdminCatalogCategory
-import com.example.admin.data.AdminCatalogService
 import com.example.admin.data.AdminCoinPackage
+import com.example.admin.data.AdminServiceFile
+import com.example.admin.data.AdminServicePlan
+import com.example.admin.data.formatRatePer1k
 import com.example.admin.theme.AdminBlue
 import com.example.admin.theme.AdminBorder
 import com.example.admin.theme.AdminDanger
 import com.example.admin.theme.AdminGreen
 import com.example.admin.theme.AdminGreenBg
 import com.example.admin.theme.AdminPrimary
-import com.example.admin.theme.AdminPrimaryLight
 import com.example.admin.theme.AdminTextSecondary
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.util.Locale
+import kotlin.math.roundToLong
 
 @Composable
 fun AdminCatalogTab(
     categories: List<AdminCatalogCategory>,
-    services: List<AdminCatalogService>,
+    serviceFiles: List<AdminServiceFile>,
+    servicePlans: List<AdminServicePlan>,
     packages: List<AdminCoinPackage>,
     busy: Boolean,
+    onSeedSocialCatalog: () -> Unit,
     onSaveCategory: (String?, String, String, String, String, String, Long, Boolean, () -> Unit) -> Unit,
     onDeleteCategory: (AdminCatalogCategory) -> Unit,
-    onSeedDefaultCategories: () -> Unit,
-    onSeedDefaultServices: () -> Unit,
-    onSaveService: (String?, String, String, String, String, Long, String, String, Boolean, Boolean, List<String>, () -> Unit) -> Unit,
-    onDeleteService: (AdminCatalogService) -> Unit,
+    onSaveFile: (String?, String, String, String, String, String, String, Long, Boolean, () -> Unit) -> Unit,
+    onDeleteFile: (AdminServiceFile) -> Unit,
+    onSavePlan: (String?, String, String, String, String, String, String, String, Long, Long, Long, String, List<String>, Long, Boolean, () -> Unit) -> Unit,
+    onDeletePlan: (AdminServicePlan) -> Unit,
     onSavePackage: (String?, String, Long, Long, Long, Long, String, Long, Boolean, () -> Unit) -> Unit,
     onDeletePackage: (AdminCoinPackage) -> Unit
 ) {
-    var subTab by remember { mutableIntStateOf(0) } // 0 = Categories, 1 = Services, 2 = Coin Packs
+    var subTab by remember { mutableIntStateOf(0) } // 0=Categories, 1=Files, 2=Plans, 3=Coins
+    var selectedCategoryFilter by remember { mutableStateOf("ALL") }
+    var selectedFileFilter by remember { mutableStateOf("ALL") }
+
     var editingCategory by remember { mutableStateOf<AdminCatalogCategory?>(null) }
     var showCategoryDialog by remember { mutableStateOf(false) }
-    var editingService by remember { mutableStateOf<AdminCatalogService?>(null) }
-    var showServiceDialog by remember { mutableStateOf(false) }
+
+    var editingFile by remember { mutableStateOf<AdminServiceFile?>(null) }
+    var showFileDialog by remember { mutableStateOf(false) }
+
+    var editingPlan by remember { mutableStateOf<AdminServicePlan?>(null) }
+    var showPlanDialog by remember { mutableStateOf(false) }
+
     var editingPackage by remember { mutableStateOf<AdminCoinPackage?>(null) }
     var showPackageDialog by remember { mutableStateOf(false) }
 
+    val filteredFiles = remember(serviceFiles, selectedCategoryFilter) {
+        if (selectedCategoryFilter == "ALL") serviceFiles
+        else serviceFiles.filter { it.categoryId == selectedCategoryFilter }
+    }
+    val filteredPlans = remember(servicePlans, selectedCategoryFilter, selectedFileFilter) {
+        servicePlans.filter { plan ->
+            (selectedCategoryFilter == "ALL" || plan.categoryId == selectedCategoryFilter) &&
+                (selectedFileFilter == "ALL" || plan.fileId == selectedFileFilter)
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 96.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // 4 Sub-tabs
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                FilterChip(
-                    selected = subTab == 0,
-                    onClick = { subTab = 0 },
-                    label = {
-                        Text(
-                            "Categories (${categories.size})",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("catalog_subtab_categories")
-                )
-                FilterChip(
-                    selected = subTab == 1,
-                    onClick = { subTab = 1 },
-                    label = {
-                        Text(
-                            "Services (${services.size})",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("catalog_subtab_services")
-                )
-                FilterChip(
-                    selected = subTab == 2,
-                    onClick = { subTab = 2 },
-                    label = {
-                        Text(
-                            "Coins (${packages.size})",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("catalog_subtab_coins")
-                )
+                item {
+                    FilterChip(
+                        selected = subTab == 0,
+                        onClick = { subTab = 0 },
+                        label = { Text("Categories (${categories.size})", fontWeight = FontWeight.SemiBold) },
+                        modifier = Modifier.testTag("catalog_subtab_categories")
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = subTab == 1,
+                        onClick = { subTab = 1 },
+                        label = { Text("Files (${serviceFiles.size})", fontWeight = FontWeight.SemiBold) },
+                        modifier = Modifier.testTag("catalog_subtab_files")
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = subTab == 2,
+                        onClick = { subTab = 2 },
+                        label = { Text("Plans (${servicePlans.size})", fontWeight = FontWeight.SemiBold) },
+                        modifier = Modifier.testTag("catalog_subtab_plans")
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = subTab == 3,
+                        onClick = { subTab = 3 },
+                        label = { Text("Coins (${packages.size})", fontWeight = FontWeight.SemiBold) },
+                        modifier = Modifier.testTag("catalog_subtab_coins")
+                    )
+                }
             }
         }
 
         when (subTab) {
+            // --- 0: CATEGORIES (2-Column 1:1 Preview) ---
             0 -> {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -191,21 +177,21 @@ fun AdminCatalogTab(
                         ) {
                             Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Add New Category", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("Add New Category (1:1 ImgBB)", color = Color.White, fontWeight = FontWeight.Bold)
                         }
-                        if (categories.size < 12) {
+                        if (categories.isEmpty() || serviceFiles.isEmpty()) {
                             OutlinedButton(
-                                onClick = onSeedDefaultCategories,
+                                onClick = onSeedSocialCatalog,
                                 enabled = !busy,
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(44.dp)
-                                    .testTag("admin_seed_categories_btn")
+                                    .testTag("admin_seed_social_btn")
                             ) {
                                 Icon(Icons.Filled.CloudDownload, contentDescription = null, tint = AdminPrimary, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Load Default Categories to Edit", color = AdminPrimary, fontWeight = FontWeight.SemiBold)
+                                Text("Load Starter Social Categories & Files", color = AdminPrimary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -214,122 +200,145 @@ fun AdminCatalogTab(
                 if (categories.isEmpty()) {
                     item {
                         EmptyCatalogNotice(
-                            text = "No custom categories yet. Tap 'Load Default Categories to Edit' to customize built-in categories, or add a brand-new category."
+                            "No categories created yet. Add Instagram, Facebook, Telegram, YouTube, or any custom category with a 1:1 ImgBB image — they appear in a 2-column 1:1 grid on the User Panel."
                         )
                     }
                 } else {
-                    items(categories, key = { it.id }) { cat ->
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color.White,
-                            border = BorderStroke(1.dp, AdminBorder),
-                            modifier = Modifier.fillMaxWidth()
+                    items(categories.chunked(2), key = { row -> row.joinToString("_") { it.id } }) { pair ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                AdminPhotoPreview(
-                                    photoUrl = cat.photoUrl,
-                                    fallbackEmoji = cat.emoji.ifBlank { "✨" },
-                                    size = 52.dp
-                                )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
+                            pair.forEach { cat ->
+                                val fileCount = serviceFiles.count { it.categoryId == cat.id }
+                                Surface(
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.dp, AdminBorder),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Box(modifier = Modifier.fillMaxWidth()) {
+                                            AdminPhotoPreview(
+                                                photoUrl = cat.photoUrl,
+                                                fallbackEmoji = cat.emoji.ifBlank { "✨" },
+                                                size = null,
+                                                cornerRadius = 14.dp,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .aspectRatio(1f)
+                                            )
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (cat.active) AdminGreenBg else Color(0xFFF3F4F6),
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (cat.active) "LIVE" else "OFF",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = if (cat.active) AdminGreen else AdminTextSecondary,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(8.dp))
                                         Text(
                                             text = cat.name,
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            overflow = TextOverflow.Ellipsis,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth()
                                         )
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = if (cat.active) AdminGreenBg else Color(0xFFF3F4F6)
+                                        Text(
+                                            text = "$fileCount files • #${cat.sortOrder}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = AdminTextSecondary,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceEvenly
                                         ) {
-                                            Text(
-                                                text = if (cat.active) "LIVE" else "HIDDEN",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = if (cat.active) AdminGreen else AdminTextSecondary,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
+                                            IconButton(onClick = {
+                                                editingCategory = cat
+                                                showCategoryDialog = true
+                                            }) {
+                                                Icon(Icons.Filled.Edit, contentDescription = "Edit category", tint = AdminBlue)
+                                            }
+                                            IconButton(onClick = { onDeleteCategory(cat) }) {
+                                                Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete category", tint = AdminDanger)
+                                            }
                                         }
                                     }
-                                    Text(
-                                        text = "${cat.subtitle.ifBlank { "Trending packs" }} • Order #${cat.sortOrder}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = AdminTextSecondary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
                                 }
-                                Row {
-                                    IconButton(onClick = {
-                                        editingCategory = cat
-                                        showCategoryDialog = true
-                                    }) {
-                                        Icon(Icons.Filled.Edit, contentDescription = "Edit category", tint = AdminBlue)
-                                    }
-                                    IconButton(onClick = { onDeleteCategory(cat) }) {
-                                        Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete category", tint = AdminDanger)
-                                    }
-                                }
+                            }
+                            if (pair.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
                 }
             }
 
+            // --- 1: CUSTOM SERVICE FILES INSIDE EACH CATEGORY ---
             1 -> {
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = {
-                                editingService = null
-                                showServiceDialog = true
-                            },
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AdminPrimary),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .testTag("admin_add_service_btn")
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Add New Service", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                        if (services.size < 4) {
-                            OutlinedButton(
-                                onClick = onSeedDefaultServices,
-                                enabled = !busy,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(44.dp)
-                                    .testTag("admin_seed_services_btn")
-                            ) {
-                                Icon(Icons.Filled.CloudDownload, contentDescription = null, tint = AdminPrimary, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Load Starter Services to Edit", color = AdminPrimary, fontWeight = FontWeight.SemiBold)
+                    Button(
+                        onClick = {
+                            editingFile = null
+                            showFileDialog = true
+                        },
+                        enabled = categories.isNotEmpty(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AdminPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("admin_add_file_btn")
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add New Service File", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (categories.isNotEmpty()) {
+                    item {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            item {
+                                FilterChip(
+                                    selected = selectedCategoryFilter == "ALL",
+                                    onClick = { selectedCategoryFilter = "ALL" },
+                                    label = { Text("All Categories") }
+                                )
+                            }
+                            items(categories, key = { it.id }) { cat ->
+                                FilterChip(
+                                    selected = selectedCategoryFilter == cat.id,
+                                    onClick = { selectedCategoryFilter = cat.id },
+                                    label = { Text(cat.name) }
+                                )
                             }
                         }
                     }
                 }
 
-                if (services.isEmpty()) {
+                if (filteredFiles.isEmpty()) {
                     item {
                         EmptyCatalogNotice(
-                            text = "No services in database yet. Tap 'Add New Service' or 'Load Starter Services to Edit' to manage Service Name, Category, Price, Provider, and Photo live."
+                            if (categories.isEmpty()) "Create a Category first (e.g. Instagram), then add custom files inside it like Followers, Reach, Reel Views, or Likes."
+                            else "No service files in this category yet. Tap 'Add New Service File' to create custom items."
                         )
                     }
                 } else {
-                    items(services, key = { it.id }) { svc ->
+                    items(filteredFiles, key = { it.id }) { file ->
+                        val planCount = servicePlans.count { it.fileId == file.id }
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = Color.White,
@@ -342,46 +351,42 @@ fun AdminCatalogTab(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 AdminPhotoPreview(
-                                    photoUrl = svc.photoUrl,
-                                    fallbackEmoji = when (svc.packType) {
-                                        "CAPTIONS" -> "✍️"
-                                        "BIOS" -> "🪪"
-                                        "IDEAS" -> "💡"
-                                        else -> "#️⃣"
-                                    },
-                                    size = 54.dp
+                                    photoUrl = file.photoUrl,
+                                    fallbackEmoji = file.emoji.ifBlank { "⚡" },
+                                    size = 52.dp
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = svc.name,
+                                        text = file.name,
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = "${svc.categoryName} • by ${svc.providerName.ifBlank { "Fame Maker" }}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = AdminPrimary,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        text = "${file.categoryName} • $planCount plans • ${if (file.active) "Live" else "Hidden"}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = AdminPrimary
                                     )
-                                    Text(
-                                        text = "${svc.coinPrice} coins • ${svc.packType} • ${if (svc.published) "Live" else "Hidden"}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = AdminTextSecondary
-                                    )
+                                    if (file.subtitle.isNotBlank()) {
+                                        Text(
+                                            text = file.subtitle,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = AdminTextSecondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
                                 Row {
                                     IconButton(onClick = {
-                                        editingService = svc
-                                        showServiceDialog = true
+                                        editingFile = file
+                                        showFileDialog = true
                                     }) {
-                                        Icon(Icons.Filled.Edit, contentDescription = "Edit service", tint = AdminBlue)
+                                        Icon(Icons.Filled.Edit, contentDescription = "Edit file", tint = AdminBlue)
                                     }
-                                    IconButton(onClick = { onDeleteService(svc) }) {
-                                        Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete service", tint = AdminDanger)
+                                    IconButton(onClick = { onDeleteFile(file) }) {
+                                        Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete file", tint = AdminDanger)
                                     }
                                 }
                             }
@@ -390,6 +395,112 @@ fun AdminCatalogTab(
                 }
             }
 
+            // --- 2: SERVICE PLANS (PRICING PER 1K & QUANTITY TIERS) ---
+            2 -> {
+                item {
+                    Button(
+                        onClick = {
+                            editingPlan = null
+                            showPlanDialog = true
+                        },
+                        enabled = serviceFiles.isNotEmpty(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AdminPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("admin_add_plan_btn")
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Add New Service Plan (₹/k)", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (serviceFiles.isNotEmpty()) {
+                    item {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            item {
+                                FilterChip(
+                                    selected = selectedFileFilter == "ALL",
+                                    onClick = { selectedFileFilter = "ALL" },
+                                    label = { Text("All Files") }
+                                )
+                            }
+                            items(serviceFiles, key = { it.id }) { f ->
+                                FilterChip(
+                                    selected = selectedFileFilter == f.id,
+                                    onClick = { selectedFileFilter = f.id },
+                                    label = { Text(f.name) }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (filteredPlans.isEmpty()) {
+                    item {
+                        EmptyCatalogNotice(
+                            if (serviceFiles.isEmpty()) "Create at least one Service File first, then add priced Service Plans inside it."
+                            else "No service plans yet. Add a plan with ₹/1k price, min/max quantity, and discount tiers."
+                        )
+                    }
+                } else {
+                    items(filteredPlans, key = { it.id }) { plan ->
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color.White,
+                            border = BorderStroke(1.dp, AdminBorder),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                AdminPhotoPreview(
+                                    photoUrl = plan.photoUrl,
+                                    fallbackEmoji = "⚡",
+                                    size = 50.dp
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = plan.name,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${plan.categoryName} › ${plan.fileName}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AdminTextSecondary
+                                    )
+                                    Text(
+                                        text = "${formatRatePer1k(plan.pricePer1kPaise)} • Qty ${plan.minQty}–${plan.maxQty} • ${if (plan.active) "Live" else "Hidden"}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = AdminPrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Row {
+                                    IconButton(onClick = {
+                                        editingPlan = plan
+                                        showPlanDialog = true
+                                    }) {
+                                        Icon(Icons.Filled.Edit, contentDescription = "Edit plan", tint = AdminBlue)
+                                    }
+                                    IconButton(onClick = { onDeletePlan(plan) }) {
+                                        Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete plan", tint = AdminDanger)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- 3: COIN PACKAGES ---
             else -> {
                 item {
                     Button(
@@ -425,7 +536,7 @@ fun AdminCatalogTab(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(pkg.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text(
-                                    text = "${pkg.coins} (+${pkg.bonusCoins} bonus) • ₹${pkg.priceInr} • +${pkg.points} pts • ${if (pkg.active) "Active" else "Paused"}",
+                                    text = "${pkg.coins} (+${pkg.bonusCoins} bonus) • ₹${pkg.priceInr} • ${if (pkg.active) "Active" else "Paused"}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = AdminTextSecondary
                                 )
@@ -454,23 +565,40 @@ fun AdminCatalogTab(
             busy = busy,
             onDismiss = { showCategoryDialog = false },
             onSave = { name, subtitle, desc, emoji, photo, order, active ->
-                onSaveCategory(
-                    editingCategory?.id, name, subtitle, desc, emoji, photo, order, active
-                ) { showCategoryDialog = false }
+                onSaveCategory(editingCategory?.id, name, subtitle, desc, emoji, photo, order, active) {
+                    showCategoryDialog = false
+                }
             }
         )
     }
 
-    if (showServiceDialog) {
-        ServiceEditorDialog(
-            initial = editingService,
-            availableCategories = categories,
+    if (showFileDialog && categories.isNotEmpty()) {
+        ServiceFileEditorDialog(
+            initial = editingFile,
+            categories = categories,
+            defaultCategoryId = selectedCategoryFilter.takeIf { it != "ALL" },
             busy = busy,
-            onDismiss = { showServiceDialog = false },
-            onSave = { catId, catName, name, type, price, provider, photo, trending, published, lines ->
-                onSaveService(
-                    editingService?.id, catId, catName, name, type, price, provider, photo, trending, published, lines
-                ) { showServiceDialog = false }
+            onDismiss = { showFileDialog = false },
+            onSave = { catId, catName, name, subtitle, emoji, photo, order, active ->
+                onSaveFile(editingFile?.id, catId, catName, name, subtitle, emoji, photo, order, active) {
+                    showFileDialog = false
+                }
+            }
+        )
+    }
+
+    if (showPlanDialog && serviceFiles.isNotEmpty()) {
+        ServicePlanEditorDialog(
+            initial = editingPlan,
+            files = serviceFiles,
+            defaultFileId = selectedFileFilter.takeIf { it != "ALL" },
+            busy = busy,
+            onDismiss = { showPlanDialog = false },
+            onSave = { catId, catName, fileId, fileName, name, desc, photo, pricePaise, minQ, maxQ, hint, tiers, order, active ->
+                onSavePlan(
+                    editingPlan?.id, catId, catName, fileId, fileName, name, desc, photo,
+                    pricePaise, minQ, maxQ, hint, tiers, order, active
+                ) { showPlanDialog = false }
             }
         )
     }
@@ -481,9 +609,9 @@ fun AdminCatalogTab(
             busy = busy,
             onDismiss = { showPackageDialog = false },
             onSave = { name, coins, bonus, pts, inr, badge, order, active ->
-                onSavePackage(
-                    editingPackage?.id, name, coins, bonus, pts, inr, badge, order, active
-                ) { showPackageDialog = false }
+                onSavePackage(editingPackage?.id, name, coins, bonus, pts, inr, badge, order, active) {
+                    showPackageDialog = false
+                }
             }
         )
     }
@@ -507,207 +635,6 @@ private fun EmptyCatalogNotice(text: String) {
 }
 
 @Composable
-private fun AdminPhotoPreview(
-    photoUrl: String,
-    fallbackEmoji: String,
-    size: Dp
-) {
-    val cleanUrl = photoUrl.trim()
-    val decodedBitmap = remember(cleanUrl) {
-        if (cleanUrl.startsWith("data:image", ignoreCase = true) && cleanUrl.contains(",")) {
-            runCatching {
-                val base64Part = cleanUrl.substringAfter(",")
-                val bytes = Base64.decode(base64Part, Base64.DEFAULT)
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-            }.getOrNull()
-        } else {
-            null
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(RoundedCornerShape(12.dp))
-            .background(AdminPrimaryLight),
-        contentAlignment = Alignment.Center
-    ) {
-        when {
-            decodedBitmap != null -> {
-                Image(
-                    bitmap = decodedBitmap,
-                    contentDescription = "Selected photo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            cleanUrl.startsWith("http://", ignoreCase = true) ||
-                cleanUrl.startsWith("https://", ignoreCase = true) -> {
-                AsyncImage(
-                    model = cleanUrl,
-                    contentDescription = "Remote photo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            fallbackEmoji.isNotBlank() -> {
-                Text(text = fallbackEmoji, style = MaterialTheme.typography.titleLarge)
-            }
-            else -> {
-                Icon(Icons.Filled.Image, contentDescription = null, tint = AdminPrimary)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PhotoPickerField(
-    label: String,
-    photoUrl: String,
-    fallbackEmoji: String,
-    onPhotoChange: (String) -> Unit
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var encoding by remember { mutableStateOf(false) }
-
-    val picker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            scope.launch {
-                encoding = true
-                val dataUri = encodePickedPhotoToDataUri(context, uri)
-                if (!dataUri.isNullOrBlank()) {
-                    onPhotoChange(dataUri)
-                }
-                encoding = false
-            }
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            AdminPhotoPreview(
-                photoUrl = photoUrl,
-                fallbackEmoji = fallbackEmoji,
-                size = 60.dp
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = {
-                            picker.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
-                        enabled = !encoding,
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.height(38.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.AddPhotoAlternate,
-                            contentDescription = null,
-                            tint = AdminPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (encoding) "Processing..." else "Pick Gallery Photo",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = AdminPrimary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    if (photoUrl.isNotBlank()) {
-                        IconButton(
-                            onClick = { onPhotoChange("") },
-                            modifier = Modifier.size(38.dp)
-                        ) {
-                            Icon(Icons.Filled.Close, contentDescription = "Remove photo", tint = AdminDanger)
-                        }
-                    }
-                }
-                Text(
-                    text = if (photoUrl.startsWith("data:image")) "Gallery photo ready (synced live)" else "Or paste an https:// image link below",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = AdminTextSecondary
-                )
-            }
-        }
-        OutlinedTextField(
-            value = if (photoUrl.startsWith("data:image")) "" else photoUrl,
-            onValueChange = { onPhotoChange(it) },
-            label = { Text("Image URL (https://...)") },
-            placeholder = { Text(if (photoUrl.startsWith("data:image")) "Gallery photo selected" else "Optional image link") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
-}
-
-private suspend fun encodePickedPhotoToDataUri(context: Context, uri: Uri): String? =
-    withContext(Dispatchers.IO) {
-        runCatching {
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
-
-            var sampleSize = 1
-            val maxDim = maxOf(bounds.outWidth, bounds.outHeight)
-            while (maxDim / sampleSize > 760) {
-                sampleSize *= 2
-            }
-
-            val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-            val raw = context.contentResolver.openInputStream(uri)?.use {
-                BitmapFactory.decodeStream(it, null, decodeOpts)
-            } ?: return@runCatching null
-
-            val targetMax = 380f
-            val scale = minOf(1f, targetMax / maxOf(raw.width, raw.height).toFloat())
-            val scaled = if (scale < 1f) {
-                Bitmap.createScaledBitmap(
-                    raw,
-                    (raw.width * scale).toInt().coerceAtLeast(1),
-                    (raw.height * scale).toInt().coerceAtLeast(1),
-                    true
-                )
-            } else {
-                raw
-            }
-
-            var quality = 74
-            var bytes: ByteArray
-            do {
-                val out = ByteArrayOutputStream()
-                scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
-                bytes = out.toByteArray()
-                quality -= 14
-            } while (bytes.size > 160_000 && quality >= 30)
-
-            if (scaled !== raw) scaled.recycle()
-            raw.recycle()
-
-            val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
-            "data:image/jpeg;base64,$encoded"
-        }.getOrNull()
-    }
-
-@Composable
 private fun CategoryEditorDialog(
     initial: AdminCatalogCategory?,
     busy: Boolean,
@@ -715,52 +642,147 @@ private fun CategoryEditorDialog(
     onSave: (String, String, String, String, String, Long, Boolean) -> Unit
 ) {
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
-    var subtitle by remember { mutableStateOf(initial?.subtitle ?: "Trending packs") }
+    var subtitle by remember { mutableStateOf(initial?.subtitle ?: "Instant Services") }
     var description by remember { mutableStateOf(initial?.description.orEmpty()) }
-    var emoji by remember { mutableStateOf(initial?.emoji ?: "✨") }
+    var emoji by remember { mutableStateOf(initial?.emoji ?: "📸") }
     var photoUrl by remember { mutableStateOf(initial?.photoUrl.orEmpty()) }
     var sortOrder by remember { mutableStateOf((initial?.sortOrder ?: 10L).toString()) }
     var active by remember { mutableStateOf(initial?.active ?: true) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                if (initial == null) "New Category" else "Edit Category",
-                fontWeight = FontWeight.Bold
-            )
-        },
+        title = { Text(if (initial == null) "New Category" else "Edit Category", fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                PhotoPickerField(
-                    label = "Category Photo",
+                ImgBbPhotoPickerField(
+                    label = "Category 1:1 Image (ImgBB)",
                     photoUrl = photoUrl,
-                    fallbackEmoji = emoji.ifBlank { "✨" },
+                    fallbackEmoji = emoji.ifBlank { "📸" },
                     onPhotoChange = { photoUrl = it }
                 )
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Category Name") },
+                    label = { Text("Category Name (e.g. Instagram)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = subtitle,
                     onValueChange = { subtitle = it },
-                    label = { Text("Subtitle (e.g. Trending hashtags)") },
+                    label = { Text("Short Tagline") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description") },
+                    label = { Text("Description (optional)") },
                     minLines = 2,
                     maxLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = emoji,
+                        onValueChange = { emoji = it.take(6) },
+                        label = { Text("Fallback Emoji") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = sortOrder,
+                        onValueChange = { sortOrder = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Sort Order") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Visible in User Panel")
+                    Switch(checked = active, onCheckedChange = { active = it })
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(name, subtitle, description, emoji, photoUrl, sortOrder.toLongOrNull() ?: 10L, active)
+                },
+                enabled = !busy && name.trim().length >= 2,
+                colors = ButtonDefaults.buttonColors(containerColor = AdminPrimary)
+            ) { Text("Save", color = Color.White) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun ServiceFileEditorDialog(
+    initial: AdminServiceFile?,
+    categories: List<AdminCatalogCategory>,
+    defaultCategoryId: String?,
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, String, String, String, Long, Boolean) -> Unit
+) {
+    val startCat = categories.firstOrNull { it.id == (initial?.categoryId ?: defaultCategoryId) } ?: categories.first()
+    var selectedCatId by remember { mutableStateOf(startCat.id) }
+    var selectedCatName by remember { mutableStateOf(startCat.name) }
+    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var subtitle by remember { mutableStateOf(initial?.subtitle.orEmpty()) }
+    var emoji by remember { mutableStateOf(initial?.emoji ?: "🚀") }
+    var photoUrl by remember { mutableStateOf(initial?.photoUrl.orEmpty()) }
+    var sortOrder by remember { mutableStateOf((initial?.sortOrder ?: 10L).toString()) }
+    var active by remember { mutableStateOf(initial?.active ?: true) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initial == null) "New Service File" else "Edit Service File", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Select Category", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(categories, key = { it.id }) { cat ->
+                        FilterChip(
+                            selected = selectedCatId == cat.id,
+                            onClick = {
+                                selectedCatId = cat.id
+                                selectedCatName = cat.name
+                            },
+                            label = { Text(cat.name) }
+                        )
+                    }
+                }
+                ImgBbPhotoPickerField(
+                    label = "File Icon / Photo (ImgBB)",
+                    photoUrl = photoUrl,
+                    fallbackEmoji = emoji.ifBlank { "🚀" },
+                    onPhotoChange = { photoUrl = it }
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("File Name (e.g. Instagram Reach, Followers)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = subtitle,
+                    onValueChange = { subtitle = it },
+                    label = { Text("Subtitle (optional)") },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -785,7 +807,7 @@ private fun CategoryEditorDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Visible in User Panel")
+                    Text("Visible to Users")
                     Switch(checked = active, onCheckedChange = { active = it })
                 }
             }
@@ -793,217 +815,177 @@ private fun CategoryEditorDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSave(
-                        name,
-                        subtitle,
-                        description,
-                        emoji,
-                        photoUrl,
-                        sortOrder.toLongOrNull() ?: 10L,
-                        active
-                    )
+                    onSave(selectedCatId, selectedCatName, name, subtitle, emoji, photoUrl, sortOrder.toLongOrNull() ?: 10L, active)
                 },
                 enabled = !busy && name.trim().length >= 2,
                 colors = ButtonDefaults.buttonColors(containerColor = AdminPrimary)
-            ) {
-                Text("Save", color = Color.White)
-            }
+            ) { Text("Save", color = Color.White) }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
 @Composable
-private fun ServiceEditorDialog(
-    initial: AdminCatalogService?,
-    availableCategories: List<AdminCatalogCategory>,
+private fun ServicePlanEditorDialog(
+    initial: AdminServicePlan?,
+    files: List<AdminServiceFile>,
+    defaultFileId: String?,
     busy: Boolean,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, Long, String, String, Boolean, Boolean, List<String>) -> Unit
+    onSave: (String, String, String, String, String, String, String, Long, Long, Long, String, List<String>, Long, Boolean) -> Unit
 ) {
-    val fallbackCategories = listOf(
-        "food" to "Food",
-        "christmas" to "Christmas",
-        "fashion" to "Fashion",
-        "photography" to "Photography",
-        "funny" to "Funny",
-        "travel" to "Travel",
-        "fitness" to "Fitness",
-        "beauty" to "Beauty",
-        "gaming" to "Gaming",
-        "technology" to "Technology",
-        "motivation" to "Motivation",
-        "lifestyle" to "Lifestyle"
-    )
-    val categoryChoices = remember(availableCategories) {
-        val merged = linkedMapOf<String, String>()
-        availableCategories.forEach { merged[it.id] = it.name }
-        fallbackCategories.forEach { (id, label) -> merged.putIfAbsent(id, label) }
-        merged.entries.map { it.key to it.value }
-    }
-
-    var selectedCatId by remember {
-        mutableStateOf(initial?.categoryId?.ifBlank { null } ?: categoryChoices.first().first)
-    }
-    var categoryName by remember {
+    val startFile = files.firstOrNull { it.id == (initial?.fileId ?: defaultFileId) } ?: files.first()
+    var selectedFile by remember { mutableStateOf(startFile) }
+    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var description by remember { mutableStateOf(initial?.description.orEmpty()) }
+    var photoUrl by remember { mutableStateOf(initial?.photoUrl.orEmpty()) }
+    var priceInrText by remember {
         mutableStateOf(
-            initial?.categoryName?.ifBlank { null }
-                ?: categoryChoices.firstOrNull { it.first == selectedCatId }?.second
-                ?: "Food"
+            if (initial != null) String.format(java.util.Locale.US, "%.2f", initial.pricePer1kPaise / 100.0)
+            else "1.00"
         )
     }
-    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
-    var packType by remember { mutableStateOf(initial?.packType ?: "HASHTAGS") }
-    var coinPrice by remember { mutableStateOf((initial?.coinPrice ?: 5L).toString()) }
-    var providerName by remember { mutableStateOf(initial?.providerName?.ifBlank { "Fame Maker" } ?: "Fame Maker") }
-    var photoUrl by remember { mutableStateOf(initial?.photoUrl.orEmpty()) }
-    var trending by remember { mutableStateOf(initial?.trending ?: true) }
-    var published by remember { mutableStateOf(initial?.published ?: true) }
-    var contentText by remember { mutableStateOf(initial?.contentLines?.joinToString("\n").orEmpty()) }
+    var minQty by remember { mutableStateOf((initial?.minQty ?: 100L).toString()) }
+    var maxQty by remember { mutableStateOf((initial?.maxQty ?: 100_000L).toString()) }
+    var inputHint by remember { mutableStateOf(initial?.inputHint ?: "Paste your Instagram post/reel or profile link") }
+    var tiersText by remember {
+        mutableStateOf(
+            (initial?.presetTiers?.takeIf { it.isNotEmpty() }
+                ?: listOf("100:0", "500:0", "1000:0", "2000:5", "5000:6", "10000:9"))
+                .joinToString(", ")
+        )
+    }
+    var sortOrder by remember { mutableStateOf((initial?.sortOrder ?: 10L).toString()) }
+    var active by remember { mutableStateOf(initial?.active ?: true) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "New Service" else "Edit Service", fontWeight = FontWeight.Bold) },
+        title = { Text(if (initial == null) "New Service Plan" else "Edit Service Plan", fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                PhotoPickerField(
-                    label = "Service Photo",
+                Text("Select Service File", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(files, key = { it.id }) { f ->
+                        FilterChip(
+                            selected = selectedFile.id == f.id,
+                            onClick = { selectedFile = f },
+                            label = { Text("${f.categoryName}: ${f.name}") }
+                        )
+                    }
+                }
+                ImgBbPhotoPickerField(
+                    label = "Plan Icon (ImgBB, optional)",
                     photoUrl = photoUrl,
-                    fallbackEmoji = "👑",
-                    onPhotoChange = { photoUrl = it }
+                    fallbackEmoji = selectedFile.emoji.ifBlank { "⚡" },
+                    onPhotoChange = { photoUrl = it },
+                    previewSize = 56.dp
                 )
-
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Service Name") },
+                    label = { Text("Plan Name (e.g. IG Reel Views - Superfast ⚡)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
-                Text(
-                    text = "Select Category",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(categoryChoices, key = { it.first }) { (catId, label) ->
-                        FilterChip(
-                            selected = selectedCatId == catId,
-                            onClick = {
-                                selectedCatId = catId
-                                categoryName = label
-                            },
-                            label = { Text(label, style = MaterialTheme.typography.labelSmall) }
-                        )
-                    }
-                }
                 OutlinedTextField(
-                    value = categoryName,
-                    onValueChange = {
-                        categoryName = it
-                        val matched = categoryChoices.firstOrNull { c -> c.second.equals(it.trim(), ignoreCase = true) }
-                        selectedCatId = matched?.first ?: it.trim().lowercase(Locale.US)
-                            .replace(Regex("[^a-z0-9]+"), "_")
-                            .trim('_')
-                            .ifBlank { "general" }
-                    },
-                    label = { Text("Category Name (Editable)") },
-                    singleLine = true,
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Short Description") },
+                    minLines = 2,
+                    maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
                 )
-
-                Text(
-                    text = "Service Type",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(listOf("HASHTAGS", "CAPTIONS", "BIOS", "IDEAS")) { t ->
-                        FilterChip(
-                            selected = packType == t,
-                            onClick = { packType = t },
-                            label = { Text(t, style = MaterialTheme.typography.labelSmall) }
-                        )
-                    }
-                }
-
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
-                        value = coinPrice,
-                        onValueChange = { coinPrice = it.filter { ch -> ch.isDigit() } },
-                        label = { Text("Price (Coins)") },
+                        value = priceInrText,
+                        onValueChange = { priceInrText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                        label = { Text("Price ₹ / 1k") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = sortOrder,
+                        onValueChange = { sortOrder = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Order") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(0.7f)
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = minQty,
+                        onValueChange = { minQty = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Min Qty") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
-                        value = providerName,
-                        onValueChange = { providerName = it },
-                        label = { Text("Provider") },
+                        value = maxQty,
+                        onValueChange = { maxQty = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Max Qty") },
                         singleLine = true,
-                        modifier = Modifier.weight(1.3f)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f)
                     )
                 }
-
                 OutlinedTextField(
-                    value = contentText,
-                    onValueChange = { contentText = it },
-                    label = { Text("Service Content (one item per line)") },
-                    minLines = 3,
-                    maxLines = 5,
+                    value = inputHint,
+                    onValueChange = { inputHint = it },
+                    label = { Text("User Link Input Hint") },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-
+                OutlinedTextField(
+                    value = tiersText,
+                    onValueChange = { tiersText = it },
+                    label = { Text("Preset Tiers (qty:discount%)") },
+                    supportingText = { Text("Example: 100:0, 500:0, 1000:0, 2000:5, 5000:6, 10000:9") },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Published Live")
-                    Switch(checked = published, onCheckedChange = { published = it })
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Show in Trending")
-                    Switch(checked = trending, onCheckedChange = { trending = it })
+                    Text("Visible to Users")
+                    Switch(checked = active, onCheckedChange = { active = it })
                 }
             }
         },
         confirmButton = {
+            val parsedPaise = ((priceInrText.toDoubleOrNull() ?: 0.0) * 100.0).roundToLong()
             Button(
                 onClick = {
-                    val lines = contentText.lines().map { it.trim() }.filter { it.isNotBlank() }
+                    val tiers = tiersText.split(",").map { it.trim() }.filter { it.isNotBlank() }
                     onSave(
-                        selectedCatId,
-                        categoryName.trim().ifBlank { "General" },
+                        selectedFile.categoryId,
+                        selectedFile.categoryName,
+                        selectedFile.id,
+                        selectedFile.name,
                         name,
-                        packType,
-                        coinPrice.toLongOrNull() ?: 5L,
-                        providerName.trim().ifBlank { "Fame Maker" },
+                        description,
                         photoUrl,
-                        trending,
-                        published,
-                        lines
+                        parsedPaise.coerceAtLeast(1L),
+                        minQty.toLongOrNull() ?: 50L,
+                        maxQty.toLongOrNull() ?: 100_000L,
+                        inputHint,
+                        tiers,
+                        sortOrder.toLongOrNull() ?: 10L,
+                        active
                     )
                 },
-                enabled = !busy && name.trim().length >= 2 && contentText.isNotBlank(),
+                enabled = !busy && name.trim().length >= 2 && parsedPaise >= 1L,
                 colors = ButtonDefaults.buttonColors(containerColor = AdminPrimary)
-            ) {
-                Text("Save", color = Color.White)
-            }
+            ) { Text("Publish", color = Color.White) }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
@@ -1015,11 +997,12 @@ private fun PackageEditorDialog(
     onSave: (String, Long, Long, Long, Long, String, Long, Boolean) -> Unit
 ) {
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
-    var coins by remember { mutableStateOf((initial?.coins ?: 1000L).toString()) }
-    var bonus by remember { mutableStateOf((initial?.bonusCoins ?: 250L).toString()) }
-    var points by remember { mutableStateOf((initial?.points ?: 5L).toString()) }
-    var priceInr by remember { mutableStateOf((initial?.priceInr ?: 399L).toString()) }
+    var coins by remember { mutableStateOf((initial?.coins ?: 500L).toString()) }
+    var bonus by remember { mutableStateOf((initial?.bonusCoins ?: 50L).toString()) }
+    var points by remember { mutableStateOf((initial?.points ?: 2L).toString()) }
+    var priceInr by remember { mutableStateOf((initial?.priceInr ?: 249L).toString()) }
     var badge by remember { mutableStateOf(initial?.badge.orEmpty()) }
+    var sortOrder by remember { mutableStateOf((initial?.sortOrder ?: 1L).toString()) }
     var active by remember { mutableStateOf(initial?.active ?: true) }
 
     AlertDialog(
@@ -1028,23 +1011,21 @@ private fun PackageEditorDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Package Title") }, singleLine = true)
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Package Name") }, singleLine = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = coins,
-                        onValueChange = { coins = it.filter { c -> c.isDigit() } },
+                        onValueChange = { coins = it.filter { ch -> ch.isDigit() } },
                         label = { Text("Coins") },
-                        singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
                         value = bonus,
-                        onValueChange = { bonus = it.filter { c -> c.isDigit() } },
+                        onValueChange = { bonus = it.filter { ch -> ch.isDigit() } },
                         label = { Text("Bonus") },
-                        singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f)
                     )
@@ -1052,28 +1033,41 @@ private fun PackageEditorDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = priceInr,
-                        onValueChange = { priceInr = it.filter { c -> c.isDigit() } },
-                        label = { Text("Price ₹") },
-                        singleLine = true,
+                        onValueChange = { priceInr = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Price (₹)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f)
                     )
                     OutlinedTextField(
                         value = points,
-                        onValueChange = { points = it.filter { c -> c.isDigit() } },
+                        onValueChange = { points = it.filter { ch -> ch.isDigit() } },
                         label = { Text("Points") },
-                        singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f)
                     )
                 }
-                OutlinedTextField(value = badge, onValueChange = { badge = it }, label = { Text("Badge (e.g. Best Value)") }, singleLine = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = badge,
+                        onValueChange = { badge = it },
+                        label = { Text("Badge") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1.4f)
+                    )
+                    OutlinedTextField(
+                        value = sortOrder,
+                        onValueChange = { sortOrder = it.filter { ch -> ch.isDigit() } },
+                        label = { Text("Order") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(0.8f)
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Active in Wallet")
+                    Text("Active")
                     Switch(checked = active, onCheckedChange = { active = it })
                 }
             }
@@ -1085,21 +1079,17 @@ private fun PackageEditorDialog(
                         name,
                         coins.toLongOrNull() ?: 500L,
                         bonus.toLongOrNull() ?: 0L,
-                        points.toLongOrNull() ?: 2L,
-                        priceInr.toLongOrNull() ?: 249L,
+                        points.toLongOrNull() ?: 1L,
+                        priceInr.toLongOrNull() ?: 99L,
                         badge,
-                        initial?.sortOrder ?: 10L,
+                        sortOrder.toLongOrNull() ?: 1L,
                         active
                     )
                 },
-                enabled = !busy && name.isNotBlank(),
+                enabled = !busy && name.trim().length >= 2,
                 colors = ButtonDefaults.buttonColors(containerColor = AdminPrimary)
-            ) {
-                Text("Save", color = Color.White)
-            }
+            ) { Text("Save", color = Color.White) }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
