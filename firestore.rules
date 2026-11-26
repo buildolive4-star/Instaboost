@@ -1,0 +1,386 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL PRIMITIVES ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        ('email' in request.auth.token &&
+          request.auth.token.email == 'buildolive4@gmail.com' &&
+          'email_verified' in request.auth.token &&
+          request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- ENTITY VALIDATION BLUEPRINTS ---
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+        (!('country' in data) || (data.country is string && data.country.size() >= 2 && data.country.size() <= 60)) &&
+        data.coins is int && data.coins >= 0 && data.coins <= 10000000 &&
+        data.points is int && data.points >= 0 && data.points <= 10000000 &&
+        data.level is int && data.level >= 1 && data.level <= 10 &&
+        data.referralCode is string && data.referralCode.size() >= 4 && data.referralCode.size() <= 20 &&
+        (!('referredBy' in data) || (data.referredBy is string && data.referredBy.size() <= 20)) &&
+        data.dailyStreak is int && data.dailyStreak >= 0 && data.dailyStreak <= 7 &&
+        (!('lastDailyClaimDay' in data) || (data.lastDailyClaimDay is string && data.lastDailyClaimDay.size() <= 16)) &&
+        (!('lastSpinDay' in data) || (data.lastSpinDay is string && data.lastSpinDay.size() <= 16)) &&
+        data.spinsToday is int && data.spinsToday >= 0 && data.spinsToday <= 10 &&
+        data.mascotEnabled is bool &&
+        data.darkMode is bool &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidOrder(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.serviceId is string && data.serviceId.size() >= 1 && data.serviceId.size() <= 80 &&
+        data.serviceName is string && data.serviceName.size() >= 1 && data.serviceName.size() <= 120 &&
+        data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 60 &&
+        data.categoryName is string && data.categoryName.size() >= 1 && data.categoryName.size() <= 60 &&
+        data.itemCount is int && data.itemCount >= 1 && data.itemCount <= 500 &&
+        data.coinPrice is int && data.coinPrice >= 0 && data.coinPrice <= 100000 &&
+        data.status in ['COMPLETED', 'PENDING', 'CANCELLED'] &&
+        data.contentLines is list && data.contentLines.size() <= 60 &&
+        (data.contentLines.size() == 0 || data.contentLines[0] is string) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidWalletTransaction(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.txType in ['PURCHASE', 'SPEND', 'BONUS', 'DAILY_REWARD', 'SPIN_REWARD', 'REFERRAL'] &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 240)) &&
+        data.coinDelta is int && data.coinDelta >= -100000 && data.coinDelta <= 100000 &&
+        data.pointsDelta is int && data.pointsDelta >= 0 && data.pointsDelta <= 10000 &&
+        data.priceInr is int && data.priceInr >= 0 && data.priceInr <= 100000 &&
+        data.status in ['SUCCESSFUL', 'PENDING', 'FAILED', 'REFUNDED'] &&
+        data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidFavoritePack(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.serviceId is string && data.serviceId.size() >= 1 && data.serviceId.size() <= 80 &&
+        data.serviceName is string && data.serviceName.size() >= 1 && data.serviceName.size() <= 120 &&
+        data.categoryName is string && data.categoryName.size() >= 1 && data.categoryName.size() <= 60 &&
+        data.contentText is string && data.contentText.size() >= 1 && data.contentText.size() <= 4000 &&
+        data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidAppNotification(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+        data.body is string && data.body.size() >= 1 && data.body.size() <= 400 &&
+        data.category in ['PURCHASE', 'REWARD', 'ORDER', 'LEVEL', 'SYSTEM'] &&
+        data.read is bool &&
+        data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidSupportTicket(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.subject is string && data.subject.size() >= 3 && data.subject.size() <= 120 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+        data.description is string && data.description.size() >= 5 && data.description.size() <= 1000 &&
+        data.status in ['OPEN', 'IN_PROGRESS', 'RESOLVED'] &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCatalogService(data) {
+      return data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 60 &&
+        data.categoryName is string && data.categoryName.size() >= 1 && data.categoryName.size() <= 60 &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
+        data.packType in ['HASHTAGS', 'CAPTIONS', 'BIOS', 'IDEAS'] &&
+        data.itemCount is int && data.itemCount >= 1 && data.itemCount <= 500 &&
+        data.coinPrice is int && data.coinPrice >= 0 && data.coinPrice <= 100000 &&
+        data.trending is bool &&
+        data.published is bool &&
+        data.contentLines is list && data.contentLines.size() >= 1 && data.contentLines.size() <= 60 &&
+        data.contentLines[0] is string &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCoinPackage(data) {
+      return data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
+        data.coins is int && data.coins >= 10 && data.coins <= 1000000 &&
+        data.bonusCoins is int && data.bonusCoins >= 0 && data.bonusCoins <= 500000 &&
+        data.points is int && data.points >= 0 && data.points <= 10000 &&
+        data.priceInr is int && data.priceInr >= 1 && data.priceInr <= 500000 &&
+        (!('badge' in data) || (data.badge is string && data.badge.size() <= 40)) &&
+        data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 100 &&
+        data.active is bool &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // --- USER PROFILE & PRIVATE SUBCOLLECTIONS ---
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        incoming().userId == request.auth.uid &&
+        incoming().keys().hasAll([
+          'userId', 'displayName', 'coins', 'points', 'level', 'referralCode',
+          'dailyStreak', 'spinsToday', 'mascotEnabled', 'darkMode', 'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'userId', 'displayName', 'email', 'country', 'coins', 'points', 'level',
+          'referralCode', 'referredBy', 'dailyStreak', 'lastDailyClaimDay',
+          'lastSpinDay', 'spinsToday', 'mascotEnabled', 'darkMode', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidUserProfile(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            (
+              // Action 1: Profile & preferences edit
+              incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'country', 'mascotEnabled', 'darkMode', 'referredBy', 'updatedAt']) ||
+              // Action 2: Wallet, points, level, daily streak, or spin update
+              incoming().diff(existing()).affectedKeys().hasOnly(['coins', 'points', 'level', 'dailyStreak', 'lastDailyClaimDay', 'lastSpinDay', 'spinsToday', 'updatedAt'])
+            )
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      // Orders subcollection
+      match /orders/{orderId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(orderId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(orderId) &&
+          isOwner(userId) &&
+          incoming().userId == request.auth.uid &&
+          incoming().keys().hasAll([
+            'userId', 'serviceId', 'serviceName', 'categoryId', 'categoryName',
+            'itemCount', 'coinPrice', 'status', 'contentLines', 'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'serviceId', 'serviceName', 'categoryId', 'categoryName',
+            'itemCount', 'coinPrice', 'status', 'contentLines', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidOrder(incoming());
+
+        allow update: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(orderId) &&
+          isValidOrder(incoming()) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          (
+            isAdmin() ||
+            (
+              isOwner(userId) &&
+              existing().status != 'CANCELLED' &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['contentLines', 'updatedAt'])
+            )
+          );
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(orderId) && isAdmin();
+      }
+
+      // Immutable wallet transactions subcollection
+      match /transactions/{txId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(txId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(txId) &&
+          (isOwner(userId) || isAdmin()) &&
+          incoming().userId == userId &&
+          incoming().keys().hasAll([
+            'userId', 'txType', 'title', 'coinDelta', 'pointsDelta', 'priceInr', 'status', 'createdAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'txType', 'title', 'description', 'coinDelta', 'pointsDelta', 'priceInr', 'status', 'createdAt'
+          ]) &&
+          isValidWalletTransaction(incoming());
+
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      // Favorites subcollection
+      match /favorites/{favId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(favId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(favId) &&
+          isOwner(userId) &&
+          incoming().userId == request.auth.uid &&
+          incoming().keys().hasAll([
+            'userId', 'serviceId', 'serviceName', 'categoryName', 'contentText', 'createdAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'serviceId', 'serviceName', 'categoryName', 'contentText', 'createdAt'
+          ]) &&
+          isValidFavoritePack(incoming());
+
+        allow update: if false;
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(favId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Notifications subcollection
+      match /notifications/{notifId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(notifId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(notifId) &&
+          (isOwner(userId) || isAdmin()) &&
+          incoming().userId == userId &&
+          incoming().keys().hasAll(['userId', 'title', 'body', 'category', 'read', 'createdAt']) &&
+          incoming().keys().hasOnly(['userId', 'title', 'body', 'category', 'read', 'createdAt']) &&
+          isValidAppNotification(incoming());
+
+        allow update: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(notifId) &&
+          isValidAppNotification(incoming()) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          (isOwner(userId) || isAdmin()) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(notifId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Support tickets subcollection
+      match /supportTickets/{ticketId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(ticketId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+
+        allow create: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(ticketId) &&
+          isOwner(userId) &&
+          incoming().userId == request.auth.uid &&
+          incoming().status == 'OPEN' &&
+          incoming().keys().hasAll(['userId', 'subject', 'category', 'description', 'status', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'subject', 'category', 'description', 'status', 'createdAt', 'updatedAt']) &&
+          isValidSupportTicket(incoming());
+
+        allow update: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(ticketId) &&
+          isValidSupportTicket(incoming()) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          (
+            isAdmin() ||
+            (
+              isOwner(userId) &&
+              existing().status != 'RESOLVED' &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['description', 'updatedAt'])
+            )
+          );
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(ticketId) && isAdmin();
+      }
+    }
+
+    // --- ADMIN-MANAGED CATALOG SERVICES ---
+    match /catalogServices/{serviceId} {
+      allow get: if isSignedIn() && isValidId(serviceId) && (existing().published == true || isAdmin());
+      allow list: if isSignedIn() && (existing().published == true || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(serviceId) &&
+        isAdmin() &&
+        incoming().keys().hasAll([
+          'categoryId', 'categoryName', 'name', 'packType', 'itemCount',
+          'coinPrice', 'trending', 'published', 'contentLines', 'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'categoryId', 'categoryName', 'name', 'packType', 'itemCount',
+          'coinPrice', 'trending', 'published', 'contentLines', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidCatalogService(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(serviceId) &&
+        isValidCatalogService(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'categoryId', 'categoryName', 'name', 'packType', 'itemCount',
+          'coinPrice', 'trending', 'published', 'contentLines', 'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn() && isValidId(serviceId) && isAdmin();
+    }
+
+    // --- ADMIN-MANAGED COIN PACKAGES ---
+    match /coinPackages/{packageId} {
+      allow get: if isSignedIn() && isValidId(packageId) && (existing().active == true || isAdmin());
+      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(packageId) &&
+        isAdmin() &&
+        incoming().keys().hasAll([
+          'name', 'coins', 'bonusCoins', 'points', 'priceInr', 'sortOrder', 'active', 'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'name', 'coins', 'bonusCoins', 'points', 'priceInr', 'badge', 'sortOrder', 'active', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidCoinPackage(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(packageId) &&
+        isValidCoinPackage(incoming()) &&
+        incoming().createdAt == existing().createdAt &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'coins', 'bonusCoins', 'points', 'priceInr', 'badge', 'sortOrder', 'active', 'updatedAt'
+        ]);
+
+      allow delete: if isSignedIn() && isValidId(packageId) && isAdmin();
+    }
+  }
+}

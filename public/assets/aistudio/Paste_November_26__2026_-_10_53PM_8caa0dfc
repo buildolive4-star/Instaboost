@@ -1,0 +1,1553 @@
+PROJECT NAME: CREATORBOOST
+
+Social Media Services, Digital Products, Coins & Rewards Platform
+
+Act as a world-class UI/UX designer, senior Android application developer, frontend engineer, backend architect, database engineer, and product designer.
+
+Build a complete, professional, premium-quality mobile application named CREATORBOOST.
+
+The application should be inspired by the uploaded reference screenshots.
+
+IMPORTANT:
+Use the uploaded screenshots as the primary design reference for the application layout, navigation, wallet, services, categories, coin system, mascot, leaderboard, and account screens.
+
+However, improve the design significantly with more features, better user experience, modern interactions, and professional UI.
+
+Do not simply copy the screenshots. Create a more polished, premium, modern product.
+
+==================================================
+
+1. APPLICATION CONCEPT
+   ==================================================
+
+CreatorBoost is a coin-based social media creator tools and digital services marketplace.
+
+Users can:
+
+- Explore different service categories.
+- Purchase digital content packs.
+- Unlock hashtags.
+- Get captions and content ideas.
+- Generate social media bios.
+- Access creative tools.
+- Purchase coins.
+- Earn reward points.
+- Collect daily rewards.
+- Participate in leaderboards.
+- Complete promotional missions.
+- Refer friends.
+- Track their orders.
+- Manage transactions.
+- Upgrade their user levels.
+
+The application must support multiple languages and be suitable for an international audience.
+
+Primary currency: INR (₹).
+
+Virtual currency: Coins.
+
+Reward currency: Points.
+
+==================================================
+2. PROFESSIONAL UI/UX DESIGN SYSTEM
+
+Create a visually attractive and premium mobile interface.
+
+Design inspiration:
+Use the uploaded screenshots.
+
+MAIN DESIGN STYLE:
+
+- Clean white background.
+- Premium minimal interface.
+- Raspberry pink accent color.
+- Pastel gradient cards.
+- Golden coin icons.
+- Blue star point icons.
+- Rounded corners.
+- Beautiful category images.
+- Modern typography.
+- Premium mascot illustrations.
+- Smooth animations.
+
+COLOR PALETTE:
+
+Primary: #D10F46
+Secondary: #F14A73
+Background: #FFFFFF
+Card Background: #F8F8FA
+Light Pink: #FCE9EF
+Gold: #F6BE35
+Blue: #477EEB
+Text: #171717
+Secondary Text: #858585
+Border: #EEEEF1
+Success: #22C55E
+Error: #EF4444
+
+TYPOGRAPHY:
+
+Use modern fonts such as Inter, Poppins, or Nunito.
+
+CARD DESIGN:
+
+- Rounded corners: 18px–24px.
+- Subtle shadows.
+- Fine borders.
+- Proper spacing.
+- Modern icons.
+- Beautiful illustrations.
+
+Create a consistent design system for all pages.
+
+Make the interface mobile-first and fully responsive.
+
+Support Android screen sizes from 360px to 480px and larger devices.
+
+==================================================
+3. APP NAVIGATION
+
+Create a fixed bottom navigation bar with five tabs.
+
+1. Services
+2. Wallet
+3. Home
+4. Leaderboard
+5. Account
+
+Each tab must have:
+
+- Modern icon.
+- Navigation label.
+- Active and inactive states.
+- Smooth transitions.
+- Pink active color.
+- Black inactive icons.
+
+The Home tab should have a slightly highlighted appearance.
+
+The navigation bar must remain visible on the primary user app screens.
+
+==================================================
+4. SPLASH SCREEN
+
+Create an attractive splash screen.
+
+Elements:
+
+- CreatorBoost logo.
+- Application name.
+- Animated coin illustration.
+- Brand mascot.
+- Tagline: "Create More. Grow More."
+- Loading animation.
+
+After loading:
+
+- If the user is logged in, open Home.
+- Otherwise, open onboarding.
+
+==================================================
+5. ONBOARDING SYSTEM
+
+Create 4 beautiful onboarding slides.
+
+Slide 1:
+Title: Discover Creative Services.
+Description: Explore premium creator tools and digital resources.
+
+Slide 2:
+Title: Unlock More With Coins.
+Description: Use coins to unlock exclusive content and services.
+
+Slide 3:
+Title: Earn Rewards & Points.
+Description: Complete activities and climb the leaderboard.
+
+Slide 4:
+Title: Become A Top Creator.
+Description: Get access to powerful tools and creative resources.
+
+Buttons:
+
+- Skip.
+- Next.
+- Get Started.
+
+==================================================
+6. LOGIN AND REGISTRATION
+
+Create:
+
+- Login Page.
+- Signup Page.
+- Forgot Password.
+- OTP Verification.
+- Email Verification.
+- Guest Login.
+
+Registration fields:
+
+- Full Name.
+- Email.
+- Mobile Number (optional).
+- Password.
+- Confirm Password.
+- Referral Code (optional).
+
+Login options:
+
+- Google Login.
+- Email Login.
+- Mobile OTP Login.
+
+Features:
+
+- Password visibility.
+- Form validation.
+- Terms and Conditions.
+- Privacy Policy.
+- Remember Me.
+
+==================================================
+7. SERVICES SECTION
+
+Create a professional Services homepage inspired by the second uploaded screenshot.
+
+HEADER:
+
+- Large heading: Services.
+- Settings icon on the right.
+- Notifications indicator.
+- Wallet coin balance.
+
+CATEGORY SECTION:
+
+Create a beautiful category card with a title and image grid.
+
+Categories:
+
+1. Food
+2. Christmas
+3. Fashion
+4. Photography
+5. Funny
+6. Travel
+7. Fitness
+8. Beauty
+9. Gaming
+10. Technology
+11. Education
+12. Motivation
+13. Business
+14. Festivals
+15. Wedding
+16. Nature
+17. Lifestyle
+18. Sports
+19. Music
+20. Pets
+
+Show six categories initially.
+
+Add a View All Categories button.
+
+Each category card must include:
+
+- Category image.
+- Category name.
+- Number of available services.
+- Trending label where applicable.
+
+CATEGORY INTERACTIONS:
+
+When the user clicks a category:
+
+Open its category details page.
+
+Show:
+
+- Category cover image.
+- Category title.
+- Description.
+- Trending badge.
+- Available content packs.
+- Coin pricing.
+- Popularity information.
+
+Add sorting:
+
+- Popular.
+- Newest.
+- Lowest Price.
+- Highest Price.
+
+Add category search.
+
+==================================================
+8. CATEGORY DETAILS PAGE
+
+Inspired by the third uploaded screenshot.
+
+Create a premium category details page.
+
+HEADER:
+
+- Back button.
+- Category cover.
+- Category title.
+- Subtitle: Trending Hashtags.
+
+FEATURED CONTENT CARD:
+
+Example:
+
+30 Christmas Hashtags.
+
+Display:
+
+- Total items.
+- Coin price.
+- Category image.
+- Content type.
+- Popular badge.
+
+Additional sections:
+
+- Popular Hashtag Packs.
+- Premium Hashtag Packs.
+- Free Hashtag Packs.
+- Recently Added.
+
+Each service card should include:
+
+- Service name.
+- Number of available items.
+- Coin price.
+- Preview button.
+- Unlock button.
+
+==================================================
+9. CREATE ORDER PAGE
+
+Inspired by the fourth uploaded screenshot.
+
+Create an attractive Create Order page.
+
+HEADER:
+
+- Back button.
+- Page title: Create Order.
+
+SERVICE DETAILS CARD:
+
+Display:
+
+- Service image.
+- Service name.
+- Number of items.
+- Category.
+
+CONTENT PREVIEW CARD:
+
+Display the actual content.
+
+Example:
+
+30 Christmas Hashtags:
+
+#MerryChristmas
+#ChristmasTree
+#ChristmasTime
+#ChristmasDecor
+#ChristmasEve
+#ChristmasGifts
+#ChristmasLights
+#ChristmasParty
+#ChristmasMood
+#HappyChristmas
+#ChristmasVibes
+
+Show a scrollable content container.
+
+USER ACTIONS:
+
+- Copy All.
+- Copy Individual.
+- Save to Favorites.
+- Share Content.
+- Regenerate (only for supported dynamic content).
+- Report Incorrect Content.
+
+ORDER PAYMENT CARD:
+
+Show:
+
+- Service Price.
+- Available Coin Balance.
+- Remaining Balance After Purchase.
+
+BUTTON:
+
+Unlock Now.
+
+When the user clicks Unlock Now:
+
+1. Check coin balance.
+2. Validate the service.
+3. Deduct coins securely on the backend.
+4. Create an order.
+5. Save order history.
+6. Unlock the purchased content.
+7. Show success animation.
+
+If the user does not have enough coins:
+
+Display:
+
+"Insufficient Coins"
+
+Buttons:
+
+- Buy Coins.
+- Cancel.
+
+IMPORTANT:
+
+All coin deductions must be verified on the server.
+
+Prevent duplicate payments and duplicate order creation.
+
+==================================================
+10. HOME DASHBOARD
+
+Create a visually rich and engaging Home screen.
+
+HEADER:
+
+- User greeting.
+- Profile avatar.
+- Notification icon.
+- Coin balance.
+
+WELCOME CARD:
+
+"Welcome to CreatorBoost"
+
+Subtitle:
+"Discover tools, unlock content and earn rewards."
+
+SHOW:
+
+- Current Coin Balance.
+- Current Level.
+- Total Points.
+- Current Leaderboard Rank.
+
+QUICK ACTIONS:
+
+- Explore Services.
+- Buy Coins.
+- Daily Rewards.
+- Refer Friends.
+- My Orders.
+- Spin & Win.
+
+FEATURED CONTENT:
+
+Create horizontal promotional cards:
+
+- Trending Hashtags.
+- Premium Captions.
+- Instagram Bio Ideas.
+- Content Creator Toolkit.
+- Festival Special Packs.
+
+TRENDING SERVICES:
+
+Display popular services in attractive cards.
+
+NEW ARRIVALS:
+
+Show recently added services.
+
+DAILY REWARDS CARD:
+
+Display:
+
+- Today's reward.
+- Claim button.
+- Daily streak.
+- Next reward countdown.
+
+MISSION CARD:
+
+Display available activities.
+
+RECENT ACTIVITY:
+
+- Latest purchase.
+- Coins added.
+- Points earned.
+- Rewards claimed.
+
+Add View All buttons wherever relevant.
+
+==================================================
+11. WALLET PAGE
+
+This is one of the most important screens.
+
+Design should closely follow the first and fifth uploaded screenshots, but improve the visual quality.
+
+HEADER:
+
+Title: Wallet.
+
+Settings icon on the right.
+
+BALANCE CARD:
+
+Display:
+
+- Gold Coin Icon.
+- Your Balance.
+- Total Coins.
+- User Level.
+- Crown Icon.
+- Level Progress.
+
+Example:
+
+Your Balance
+2,500 Coins
+Level 3
+
+Add a progress indicator:
+
+"500 points to reach Level 4."
+
+BUY COINS SECTION:
+
+Display beautiful coin package cards.
+
+PACKAGE 1:
+
+500 Coins
++2 Points
+Price: ₹249
+
+PACKAGE 2:
+
+1,000 Coins
++250 Bonus Coins
++3 Points
+Price: ₹429
+
+Badge: Most Popular.
+
+PACKAGE 3:
+
+5,000 Coins
++1,000 Bonus Coins
++15 Points
+Price: ₹1,699
+
+Badge: Best Value.
+
+PACKAGE 4:
+
+10,000 Coins
++2,500 Bonus Coins
++30 Points
+Price: ₹2,999
+
+Badge: Super Saver.
+
+All package information must be editable from the admin panel.
+
+PACKAGE CARD DESIGN:
+
+- Large coin illustration.
+- Coin quantity.
+- Bonus coin information.
+- Reward point information.
+- Price button.
+- Promotional badge.
+
+When a package is selected:
+
+Highlight the card.
+
+Show a sticky bottom payment bar.
+
+BOTTOM PAYMENT BAR:
+
+Display:
+
+- Selected Coins.
+- Bonus Coins.
+- Points.
+- Total Price.
+- Pay Button.
+
+PAYMENT FLOW:
+
+1. Select package.
+2. Review package.
+3. Click Pay.
+4. Open payment checkout.
+5. Process payment.
+6. Verify transaction on backend.
+7. Add coins to wallet.
+8. Add eligible reward points.
+9. Create transaction record.
+10. Show purchase success screen.
+
+Never add coins simply because the frontend payment button was clicked.
+
+Integrate Google Play Billing for digital goods in the Android application, with verified purchase handling.
+
+==================================================
+12. WALLET HISTORY
+
+Create a separate wallet history page.
+
+Tabs:
+
+- All.
+- Coins Added.
+- Coins Spent.
+- Bonus Coins.
+- Reward Points.
+
+Each transaction should show:
+
+- Transaction ID.
+- Transaction type.
+- Description.
+- Date and time.
+- Coin amount.
+- Payment amount where applicable.
+- Status.
+
+Statuses:
+
+- Successful.
+- Pending.
+- Failed.
+- Refunded.
+
+Add:
+
+- Search transactions.
+- Date filters.
+- Transaction details.
+- Receipt view.
+
+==================================================
+13. LEADERBOARD PAGE
+
+Use the sixth uploaded screenshot as the main design reference.
+
+Create a professional leaderboard system.
+
+HEADER:
+
+Title: Leaderboard.
+
+FILTER TABS:
+
+- All Time.
+- Monthly.
+- Weekly.
+- Daily.
+
+COUNTRY FILTER:
+
+- Global.
+- India.
+- Other supported countries.
+
+LEADERBOARD RANKINGS:
+
+Each item should display:
+
+- User avatar.
+- Username.
+- Country flag.
+- Total points.
+- Rank number.
+- Rank medal.
+
+Top three users should receive:
+
+1. Gold Medal.
+2. Silver Medal.
+3. Bronze Medal.
+
+Create attractive ranking cards.
+
+CURRENT USER POSITION:
+
+Always display the logged-in user's ranking in a fixed highlighted card near the bottom.
+
+Example:
+
+Your Rank: #128
+Your Points: 450
+
+REWARDS:
+
+Create configurable leaderboard rewards.
+
+Example:
+
+Rank 1: 1,000 Bonus Coins.
+Rank 2: 700 Bonus Coins.
+Rank 3: 500 Bonus Coins.
+
+Add:
+
+- Leaderboard Rules.
+- Prize Information.
+- Previous Winners.
+- Monthly Winners.
+
+Leaderboard rankings must use actual verified points.
+
+Prevent fake points and duplicate rewards.
+
+==================================================
+14. POINTS AND LEVEL SYSTEM
+
+Create a complete gamification system.
+
+POINTS:
+
+Users earn points through eligible activities.
+
+Examples:
+
+- Purchase qualifying coin packages.
+- Complete verified daily challenges.
+- Participate in promotional events.
+- Refer verified new users.
+- Complete profile.
+- Special event rewards.
+
+LEVEL SYSTEM:
+
+Level 1: Beginner.
+Level 2: Starter.
+Level 3: Explorer.
+Level 4: Creator.
+Level 5: Influencer.
+Level 6: Pro Creator.
+Level 7: Elite.
+Level 8: Champion.
+Level 9: Master.
+Level 10: Legend.
+
+Each level should have:
+
+- Level icon.
+- Required points.
+- Progress bar.
+- Unlockable badges.
+- Special rewards.
+
+Create a beautiful Level Details page.
+
+==================================================
+15. DAILY REWARDS PAGE
+
+Create a daily check-in system.
+
+Show seven-day reward calendar.
+
+Example:
+
+Day 1: 5 Coins.
+Day 2: 10 Coins.
+Day 3: 15 Coins.
+Day 4: 20 Coins.
+Day 5: 25 Coins.
+Day 6: 35 Coins.
+Day 7: 50 Coins + Bonus Badge.
+
+Features:
+
+- Claim Daily Reward.
+- Daily Streak.
+- Next Reward Countdown.
+- Missed Day Information.
+- Reward History.
+
+Make reward values configurable by admin.
+
+Daily rewards must be claimed only once per eligible day.
+
+==================================================
+16. SPIN & WIN
+
+Create a premium lucky wheel page.
+
+Wheel rewards:
+
+- 5 Coins.
+- 10 Coins.
+- 20 Coins.
+- 50 Coins.
+- 100 Coins.
+- Bonus Points.
+- Try Again.
+
+Features:
+
+- Beautiful animated wheel.
+- Spin button.
+- Daily spin limit.
+- Reward result popup.
+- Spin history.
+
+All rewards must be selected and validated server-side.
+
+Clearly display the odds and rules.
+
+==================================================
+17. REFER & EARN PAGE
+
+Create a referral program.
+
+Display:
+
+- Unique Referral Code.
+- Referral Link.
+- Total Invites.
+- Successful Referrals.
+- Total Coins Earned.
+- Total Points Earned.
+
+Buttons:
+
+- Copy Code.
+- Share Link.
+- Invite Friends.
+
+Reward system:
+
+Admin-configurable referral rewards.
+
+Only issue rewards after the referred user completes valid eligibility requirements.
+
+Prevent fake accounts and referral abuse.
+
+==================================================
+18. MY ORDERS PAGE
+
+Create a complete order management page.
+
+Tabs:
+
+- All Orders.
+- Completed.
+- Pending.
+- Cancelled.
+
+Order cards:
+
+- Order ID.
+- Service image.
+- Service name.
+- Category.
+- Coin price.
+- Purchase date.
+- Order status.
+
+When a user opens an order:
+
+Show complete order details.
+
+For digital products:
+
+- View Purchased Content.
+- Copy Content.
+- Download Where Applicable.
+- Save to Favorites.
+
+==================================================
+19. FAVORITES PAGE
+
+Create a favorite content library.
+
+Users can save:
+
+- Hashtag packs.
+- Captions.
+- Bio templates.
+- Content ideas.
+- Creative resources.
+
+Features:
+
+- Search favorites.
+- Category filters.
+- Copy.
+- Share.
+- Remove from Favorites.
+
+==================================================
+20. NOTIFICATIONS
+
+Create a modern notification center.
+
+Notification types:
+
+- Coin Purchases.
+- New Services.
+- Daily Rewards.
+- Referral Rewards.
+- Level Up.
+- Leaderboard Results.
+- Promotional Offers.
+- App Updates.
+- Order Updates.
+
+Features:
+
+- Read/Unread.
+- Mark All as Read.
+- Delete Notification.
+- Notification Preferences.
+
+Integrate Firebase Cloud Messaging.
+
+==================================================
+21. ACCOUNT PAGE
+
+Use the seventh uploaded screenshot as the design reference.
+
+HEADER:
+
+Title: Account.
+
+PROFILE SECTION:
+
+- User Avatar.
+- Full Name.
+- Email.
+- Edit Profile Button.
+
+STATISTICS:
+
+Three large items:
+
+- Your Coins.
+- Your Level.
+- Your Points.
+
+ACCOUNT MENU:
+
+1. Orders.
+2. Payments.
+3. Wallet History.
+4. My Favorites.
+5. Daily Rewards.
+6. Refer & Earn.
+7. Achievements.
+8. Leaderboard History.
+9. Help & Support.
+10. App Settings.
+11. Privacy Policy.
+12. Terms & Conditions.
+13. Logout.
+
+Each item must have an appropriate icon and navigation.
+
+==================================================
+22. SETTINGS PAGE
+
+Create a complete settings section.
+
+Features:
+
+- Edit Profile.
+- Change Password.
+- Language Selection.
+- Notification Settings.
+- Privacy Settings.
+- Dark Mode.
+- App Theme.
+- Country Selection.
+- Currency Display.
+- Help and Support.
+- Contact Us.
+- Delete Account.
+- Logout.
+
+==================================================
+23. MASCOT / VIRTUAL ASSISTANT
+
+Create a cute, premium mascot inspired by the red flame character in the uploaded screenshots.
+
+The mascot should be:
+
+- Friendly.
+- Small.
+- Cute.
+- Animated.
+- Consistent across app screens.
+
+Mascot animations:
+
+- Idle.
+- Happy.
+- Celebration.
+- Coin Reward.
+- Error.
+- Sleep.
+- Welcome.
+
+Examples of messages:
+
+"Welcome back!"
+
+"You received 50 coins!"
+
+"Your next reward is waiting!"
+
+"Congratulations! You reached Level 3!"
+
+The mascot should appear near the lower-right area when appropriate.
+
+Add an option to hide or disable the mascot.
+
+Use original artwork, not copyrighted character assets.
+
+==================================================
+24. HELP & SUPPORT
+
+Create:
+
+- Help Center.
+- FAQ.
+- Contact Support.
+- Support Tickets.
+- Report Problem.
+- Payment Issues.
+- Order Issues.
+
+Support ticket form:
+
+- Subject.
+- Category.
+- Description.
+- Optional Attachment.
+
+Users can track support ticket status.
+
+==================================================
+25. ADMIN PANEL
+
+Build a completely separate, professional web-based admin dashboard.
+
+Admin UI should use a modern desktop layout with sidebar navigation.
+
+ADMIN SIDEBAR:
+
+1. Dashboard.
+2. User Management.
+3. Category Management.
+4. Services Management.
+5. Content Management.
+6. Order Management.
+7. Coin Packages.
+8. Wallet Management.
+9. Payments.
+10. Rewards Management.
+11. Points Management.
+12. Level Management.
+13. Leaderboard.
+14. Referral Management.
+15. Notifications.
+16. Promotional Banners.
+17. Support Tickets.
+18. Reports.
+19. App Settings.
+20. Admin Profile.
+21. Logout.
+
+==================================================
+26. ADMIN DASHBOARD
+
+Display statistics:
+
+- Total Users.
+- Active Users.
+- New Users Today.
+- Total Revenue.
+- Total Coin Purchases.
+- Total Coins in Circulation.
+- Total Orders.
+- Completed Orders.
+- Pending Payments.
+- Premium Services.
+
+Create charts:
+
+- User Growth.
+- Revenue Growth.
+- Daily Transactions.
+- Service Sales.
+- Coin Consumption.
+- Most Popular Categories.
+
+Add recent activity tables.
+
+==================================================
+27. USER MANAGEMENT
+
+Create a detailed user management system.
+
+Columns:
+
+- User ID.
+- Avatar.
+- Name.
+- Email.
+- Country.
+- Coins.
+- Points.
+- Level.
+- Registration Date.
+- Status.
+
+Features:
+
+- Search.
+- Filters.
+- View Profile.
+- View Orders.
+- View Transactions.
+- View Rewards.
+- Block User.
+- Unblock User.
+- Suspend Account.
+
+Admin can view a user's complete activity history.
+
+Any manual wallet adjustment must require a reason and create an audit log.
+
+==================================================
+28. CATEGORY MANAGEMENT
+
+Admin can:
+
+- Add Category.
+- Edit Category.
+- Delete Category.
+- Upload Category Image.
+- Change Category Name.
+- Add Description.
+- Set Category Order.
+- Enable/Disable Category.
+- Mark Category as Trending.
+- Add Category Banner.
+
+All changes should update the user application.
+
+==================================================
+29. SERVICES AND DIGITAL CONTENT MANAGEMENT
+
+Admin can create digital service products.
+
+PRODUCT TYPES:
+
+- Hashtag Packs.
+- Caption Packs.
+- Bio Templates.
+- Content Ideas.
+- Reel Ideas.
+- Festival Packs.
+- Marketing Templates.
+- Social Media Resources.
+
+SERVICE FIELDS:
+
+- Service Name.
+- Category.
+- Image.
+- Description.
+- Number of Items.
+- Content.
+- Coin Price.
+- Status.
+- Featured Status.
+- Trending Status.
+
+Admin actions:
+
+- Add Service.
+- Edit Service.
+- Delete Service.
+- Duplicate Service.
+- Preview Service.
+- Publish.
+- Unpublish.
+
+Support bulk content upload where suitable.
+
+==================================================
+30. COIN PACKAGE MANAGEMENT
+
+Admin can create and configure wallet packages.
+
+Fields:
+
+- Package Name.
+- Coin Amount.
+- Bonus Coins.
+- Reward Points.
+- Price.
+- Display Badge.
+- Sort Order.
+- Active Status.
+
+Admin can configure:
+
+- Most Popular.
+- Best Value.
+- Super Saver.
+
+All coin package information must be dynamic.
+
+==================================================
+31. PAYMENT MANAGEMENT
+
+Create a complete payment dashboard.
+
+Display:
+
+- Transaction ID.
+- User.
+- Package.
+- Amount.
+- Payment Method.
+- Transaction Date.
+- Verification Status.
+
+Features:
+
+- Search Transactions.
+- Date Filter.
+- Payment Details.
+- Failed Payments.
+- Successful Payments.
+- Refund Records.
+
+All payment verification must be performed securely on the backend.
+
+Do not allow administrators to mark unverified transactions as successful without a logged, authorized manual reconciliation process.
+
+==================================================
+32. REWARD MANAGEMENT
+
+Admin can control:
+
+- Daily Check-in Rewards.
+- Weekly Rewards.
+- Spin Wheel Rewards.
+- Referral Rewards.
+- Mission Rewards.
+- Special Event Rewards.
+- Promotional Rewards.
+
+Admin can set:
+
+- Reward Type.
+- Reward Quantity.
+- Eligibility.
+- Start Date.
+- End Date.
+- Maximum Claims.
+- Active/Inactive.
+
+==================================================
+33. LEADERBOARD MANAGEMENT
+
+Admin can configure:
+
+- Weekly Leaderboard.
+- Monthly Leaderboard.
+- All-Time Leaderboard.
+- Global Leaderboard.
+- Country Leaderboard.
+
+Admin can configure reward rules.
+
+Add:
+
+- Leaderboard Reset Rules.
+- Historical Winners.
+- Prize Distribution.
+- Anti-Fraud Controls.
+
+==================================================
+34. NOTIFICATION MANAGEMENT
+
+Admin can send push notifications.
+
+Fields:
+
+- Title.
+- Message.
+- Image.
+- Target Audience.
+- Schedule Time.
+
+Audience:
+
+- All Users.
+- New Users.
+- Active Users.
+- Inactive Users.
+- Premium Users.
+- Specific Country.
+- Selected Users.
+
+Add notification analytics:
+
+- Sent.
+- Delivered.
+- Opened.
+
+==================================================
+35. PROMOTIONAL BANNER MANAGEMENT
+
+Admin can manage homepage banners.
+
+Features:
+
+- Upload Banner.
+- Banner Title.
+- Description.
+- Redirect Page.
+- Start Date.
+- End Date.
+- Priority.
+- Active Status.
+
+Create a promotional carousel on the Home screen.
+
+==================================================
+36. TECHNICAL ARCHITECTURE
+
+FRONTEND:
+
+HTML5.
+CSS3.
+JavaScript.
+Reusable UI Components.
+
+For a native Android release, use Flutter or Kotlin based on the selected deployment strategy.
+
+BACKEND:
+
+Node.js.
+Express.js.
+REST APIs.
+
+DATABASE:
+
+PostgreSQL.
+
+AUTHENTICATION:
+
+Firebase Auth or secure backend authentication.
+
+NOTIFICATIONS:
+
+Firebase Cloud Messaging.
+
+PAYMENTS:
+
+Google Play Billing for Android digital goods, with secure purchase verification.
+
+ANALYTICS:
+
+Firebase Analytics.
+
+==================================================
+37. DATABASE TABLES
+
+Create the following database tables:
+
+users
+user_profiles
+user_wallets
+wallet_transactions
+coin_packages
+payments
+payment_verifications
+categories
+services
+service_content
+orders
+order_items
+favorites
+points_transactions
+levels
+user_levels
+daily_rewards
+reward_claims
+spin_history
+referrals
+referral_rewards
+leaderboard_entries
+notifications
+notification_logs
+support_tickets
+support_messages
+promotional_banners
+app_settings
+admin_users
+admin_audit_logs
+
+Use foreign keys and proper indexes.
+
+All important financial and reward transactions must be recorded in an immutable transaction ledger.
+
+==================================================
+38. SECURITY
+
+Implement:
+
+- Secure Authentication.
+- Role-Based Access Control.
+- JWT or secure sessions.
+- Server-side wallet logic.
+- Idempotent payment processing.
+- Payment verification.
+- API Rate Limiting.
+- Input Validation.
+- Secure File Upload.
+- Admin Audit Logs.
+- User Data Protection.
+- Database Backups.
+- Account Deletion.
+
+Never expose private API keys in frontend code.
+
+Never trust coin balance or point amounts submitted by the frontend.
+
+==================================================
+39. FUNCTIONALITY REQUIREMENTS
+
+This must be a genuinely interactive application.
+
+Every main button must work.
+
+Examples:
+
+- Category cards open category details.
+- Service cards open service details.
+- Unlock buttons create orders.
+- Copy buttons copy actual content.
+- Favorite buttons save items.
+- Wallet packages can be selected.
+- Payment button opens payment flow.
+- Daily reward button claims eligible rewards.
+- Spin button performs an eligible spin.
+- Referral button copies referral link.
+- Leaderboard filters change rankings.
+- Account menu items open their respective pages.
+- Admin actions update backend data.
+
+Add:
+
+- Loading animations.
+- Empty states.
+- Error handling.
+- Confirmation dialogs.
+- Success animations.
+- Form validation.
+- Responsive interactions.
+
+Use demo data for preview mode and clearly label it as demonstration data.
+
+==================================================
+40. FINAL PROJECT DELIVERY
+
+Create a complete project with:
+
+USER APP:
+
+- All user screens.
+- Bottom navigation.
+- Wallet.
+- Services.
+- Category details.
+- Create Order.
+- Home Dashboard.
+- Leaderboard.
+- Account.
+- Daily Rewards.
+- Spin & Win.
+- Referral System.
+- Favorites.
+- Orders.
+- Notifications.
+- Settings.
+- Support.
+
+ADMIN PANEL:
+
+- Admin Login.
+- Dashboard.
+- User Management.
+- Categories.
+- Services.
+- Orders.
+- Payments.
+- Coin Packages.
+- Rewards.
+- Leaderboard.
+- Notifications.
+- Reports.
+- Settings.
+
+BACKEND:
+
+- REST API.
+- Authentication.
+- Database.
+- Wallet Engine.
+- Reward Engine.
+- Payment Verification.
+- Order Engine.
+- Notification System.
+
+IMPORTANT DEVELOPMENT INSTRUCTIONS:
+
+Build this project in a structured and professional manner.
+
+Do not create only a homepage.
+
+Do not leave important pages empty.
+
+Do not create buttons that only look functional.
+
+Use proper navigation and reusable components.
+
+First complete the entire mobile frontend.
+
+Next build the admin frontend.
+
+Then implement backend APIs and database.
+
+Finally connect all modules and test the complete user journey.
+
+The final application must look like a premium, professionally designed Android application with a polished experience comparable to established consumer apps.
+
+The uploaded screenshots should guide the visual identity, but the final product should be significantly more detailed, feature-rich, attractive, and professional.

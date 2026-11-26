@@ -1,0 +1,6 @@
+{
+  "name": "CreatorBoost",
+  "description": "Social media creator tools, hashtag and caption packs, coin wallet, daily rewards, spin wheel, leaderboard, and AI content studio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

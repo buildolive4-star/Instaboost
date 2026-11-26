@@ -1,0 +1,179 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user account, coin balance, points, level, streak, and preferences.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID matching document ID." },
+        "displayName": { "type": "string", "description": "User display name." },
+        "email": { "type": "string", "description": "User email address (private to owner/admin)." },
+        "country": { "type": "string", "description": "Selected country name." },
+        "coins": { "type": "integer", "description": "Current virtual coin balance." },
+        "points": { "type": "integer", "description": "Accumulated reward points." },
+        "level": { "type": "integer", "description": "Creator level from 1 to 10." },
+        "referralCode": { "type": "string", "description": "Unique referral code for sharing." },
+        "referredBy": { "type": "string", "description": "Optional referral code used during setup." },
+        "dailyStreak": { "type": "integer", "description": "Consecutive daily check-in streak (0-7)." },
+        "lastDailyClaimDay": { "type": "string", "description": "ISO date yyyy-MM-dd of last daily reward claim." },
+        "lastSpinDay": { "type": "string", "description": "ISO date yyyy-MM-dd of last lucky wheel spin." },
+        "spinsToday": { "type": "integer", "description": "Number of spins completed today." },
+        "mascotEnabled": { "type": "boolean", "description": "Whether floating mascot companion is visible." },
+        "darkMode": { "type": "boolean", "description": "Whether dark mode preference is active." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Immutable creation timestamp via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "displayName", "coins", "points", "level", "referralCode", "dailyStreak", "spinsToday", "mascotEnabled", "darkMode", "createdAt", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Purchased digital content pack order belonging to a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "serviceId": { "type": "string" },
+        "serviceName": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "itemCount": { "type": "integer" },
+        "coinPrice": { "type": "integer" },
+        "status": { "type": "string", "enum": ["COMPLETED", "PENDING", "CANCELLED"] },
+        "contentLines": { "type": "array", "description": "Unlocked hashtags, captions, or bio lines." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "serviceId", "serviceName", "categoryId", "categoryName", "itemCount", "coinPrice", "status", "contentLines", "createdAt", "updatedAt"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Immutable wallet transaction ledger entry for coin additions, spends, bonuses, and rewards.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "txType": { "type": "string", "enum": ["PURCHASE", "SPEND", "BONUS", "DAILY_REWARD", "SPIN_REWARD", "REFERRAL"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "coinDelta": { "type": "integer" },
+        "pointsDelta": { "type": "integer" },
+        "priceInr": { "type": "integer" },
+        "status": { "type": "string", "enum": ["SUCCESSFUL", "PENDING", "FAILED", "REFUNDED"] },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "txType", "title", "coinDelta", "pointsDelta", "priceInr", "status", "createdAt"]
+    },
+    "FavoritePack": {
+      "title": "FavoritePack",
+      "description": "User-saved favorite hashtag pack, caption set, or AI-generated bio.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "serviceId": { "type": "string" },
+        "serviceName": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "contentText": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "serviceId", "serviceName", "categoryName", "contentText", "createdAt"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "In-app notification entry for purchases, orders, daily rewards, and level-ups.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string", "enum": ["PURCHASE", "REWARD", "ORDER", "LEVEL", "SYSTEM"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "title", "body", "category", "read", "createdAt"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "User help & support ticket with status tracking.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subject": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["OPEN", "IN_PROGRESS", "RESOLVED"] },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Submitted via FieldValue.serverTimestamp()." }
+      },
+      "required": ["userId", "subject", "category", "description", "status", "createdAt", "updatedAt"]
+    },
+    "CatalogService": {
+      "title": "CatalogService",
+      "description": "Admin-managed digital content pack published to the Services catalog.",
+      "type": "object",
+      "properties": {
+        "categoryId": { "type": "string" },
+        "categoryName": { "type": "string" },
+        "name": { "type": "string" },
+        "packType": { "type": "string", "enum": ["HASHTAGS", "CAPTIONS", "BIOS", "IDEAS"] },
+        "itemCount": { "type": "integer" },
+        "coinPrice": { "type": "integer" },
+        "trending": { "type": "boolean" },
+        "published": { "type": "boolean" },
+        "contentLines": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["categoryId", "categoryName", "name", "packType", "itemCount", "coinPrice", "trending", "published", "contentLines", "createdAt", "updatedAt"]
+    },
+    "CoinPackage": {
+      "title": "CoinPackage",
+      "description": "Admin-managed coin bundle available in Wallet.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "coins": { "type": "integer" },
+        "bonusCoins": { "type": "integer" },
+        "points": { "type": "integer" },
+        "priceInr": { "type": "integer" },
+        "badge": { "type": "string" },
+        "sortOrder": { "type": "integer" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "coins", "bonusCoins", "points", "priceInr", "sortOrder", "active", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile, wallet balance, points, level, streak, and app settings."
+    },
+    "/users/{userId}/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "User purchased digital content pack orders."
+    },
+    "/users/{userId}/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/WalletTransaction" },
+      "description": "User immutable wallet transaction ledger."
+    },
+    "/users/{userId}/favorites/{favId}": {
+      "schema": { "$ref": "#/entities/FavoritePack" },
+      "description": "User saved favorite content packs."
+    },
+    "/users/{userId}/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/AppNotification" },
+      "description": "User notifications."
+    },
+    "/users/{userId}/supportTickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/SupportTicket" },
+      "description": "User support tickets."
+    },
+    "/catalogServices/{serviceId}": {
+      "schema": { "$ref": "#/entities/CatalogService" },
+      "description": "Admin-published dynamic creator services."
+    },
+    "/coinPackages/{packageId}": {
+      "schema": { "$ref": "#/entities/CoinPackage" },
+      "description": "Admin-configured coin wallet packages."
+    }
+  }
+}
