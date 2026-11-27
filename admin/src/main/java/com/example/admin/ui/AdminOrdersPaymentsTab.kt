@@ -82,8 +82,9 @@ fun AdminOrdersPaymentsTab(
     onSavePaymentConfig: (AdminAppConfig) -> Unit,
     onCopyToast: (String) -> Unit
 ) {
-    var subTab by remember { mutableIntStateOf(0) } // 0 = Orders, 1 = Deposits, 2 = Payment Setup
+    var subTab by remember { mutableIntStateOf(0) } // 0 = Orders, 1 = Deposits & Coins, 2 = Payment Setup
     var orderStatusFilter by remember { mutableStateOf("ALL") }
+    var depositFilter by remember { mutableStateOf("ALL") }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
     var editingOrder by remember { mutableStateOf<AdminServiceOrder?>(null) }
 
@@ -93,6 +94,14 @@ fun AdminOrdersPaymentsTab(
     val filteredOrders = remember(orders, orderStatusFilter) {
         if (orderStatusFilter == "ALL") orders
         else orders.filter { it.status == orderStatusFilter }
+    }
+    val filteredDeposits = remember(fundRequests, depositFilter) {
+        when (depositFilter) {
+            "PENDING" -> fundRequests.filter { it.status == "PENDING" }
+            "COINS" -> fundRequests.filter { it.isCoinPurchase }
+            "WALLET" -> fundRequests.filter { !it.isCoinPurchase }
+            else -> fundRequests
+        }
     }
 
     LazyColumn(
@@ -121,7 +130,7 @@ fun AdminOrdersPaymentsTab(
                         onClick = { subTab = 1 },
                         label = {
                             Text(
-                                text = if (pendingDepositsCount > 0) "Deposits ($pendingDepositsCount new)" else "Deposits (${fundRequests.size})",
+                                text = if (pendingDepositsCount > 0) "Payments ($pendingDepositsCount new)" else "Payments (${fundRequests.size})",
                                 fontWeight = FontWeight.SemiBold
                             )
                         },
@@ -186,9 +195,27 @@ fun AdminOrdersPaymentsTab(
                 }
             }
 
-            // --- 1: FUND / DEPOSIT REQUESTS ---
+            // --- 1: FUND / COIN PURCHASE PAYMENT REQUESTS ---
             1 -> {
-                if (fundRequests.isEmpty()) {
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(
+                            "ALL" to "All (${fundRequests.size})",
+                            "PENDING" to "Pending ($pendingDepositsCount)",
+                            "COINS" to "Coin Packs (${fundRequests.count { it.isCoinPurchase }})",
+                            "WALLET" to "INR Wallet (${fundRequests.count { !it.isCoinPurchase }})"
+                        ).forEach { (key, label) ->
+                            item {
+                                FilterChip(
+                                    selected = depositFilter == key,
+                                    onClick = { depositFilter = key },
+                                    label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
+                    }
+                }
+                if (filteredDeposits.isEmpty()) {
                     item {
                         Surface(
                             shape = RoundedCornerShape(16.dp),
@@ -197,7 +224,7 @@ fun AdminOrdersPaymentsTab(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "No wallet deposit requests yet. When users submit a UPI UTR to add funds, approve or reject it here.",
+                                text = "No payment requests in this view yet. When users pay via UPI QR for Coins or INR Wallet funds, approve or reject them here.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = AdminTextSecondary,
                                 modifier = Modifier.padding(16.dp)
@@ -205,7 +232,7 @@ fun AdminOrdersPaymentsTab(
                         }
                     }
                 } else {
-                    items(fundRequests, key = { it.id }) { req ->
+                    items(filteredDeposits, key = { it.id }) { req ->
                         AdminFundRequestCard(
                             request = req,
                             busy = busy,
@@ -509,17 +536,20 @@ private fun AdminFundRequestCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (request.isCoinPurchase) AdminGoldBg else AdminBlueBg
+                ) {
                     Text(
-                        text = formatInrFromPaise(request.amountPaise),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = AdminPrimary,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Text(
-                        text = "${request.userName} • ${request.userEmail.ifBlank { request.userId.take(8) }}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AdminTextSecondary
+                        text = if (request.isCoinPurchase) {
+                            "🪙 COIN PACK • +${request.coinsToCredit} Coins"
+                        } else {
+                            "💰 INR WALLET TOP-UP"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (request.isCoinPurchase) Color(0xFFB45309) else AdminBlue,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
                 Surface(shape = RoundedCornerShape(8.dp), color = bg) {
@@ -531,6 +561,28 @@ private fun AdminFundRequestCard(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
+            }
+
+            Column {
+                Text(
+                    text = formatInrFromPaise(request.amountPaise),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = AdminPrimary,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                if (request.isCoinPurchase && request.packageName.isNotBlank()) {
+                    Text(
+                        text = "${request.packageName}${if (request.pointsToCredit > 0) " • +${request.pointsToCredit} pts" else ""}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1F2937)
+                    )
+                }
+                Text(
+                    text = "${request.userName} • ${request.userEmail.ifBlank { request.userId.take(8) }}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AdminTextSecondary
+                )
             }
 
             Row(
@@ -567,7 +619,7 @@ private fun AdminFundRequestCard(
                         onClick = onReject,
                         enabled = !busy,
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(0.9f)
                     ) {
                         Icon(Icons.Filled.Close, contentDescription = null, tint = AdminDanger, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -578,11 +630,15 @@ private fun AdminFundRequestCard(
                         enabled = !busy,
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AdminGreen),
-                        modifier = Modifier.weight(1.4f)
+                        modifier = Modifier.weight(1.5f)
                     ) {
                         Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Approve & Credit", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = if (request.isCoinPurchase) "Credit ${request.coinsToCredit} Coins" else "Credit ${formatInrFromPaise(request.amountPaise)}",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             } else if (request.adminNote.isNotBlank()) {
@@ -602,6 +658,7 @@ private fun PaymentSetupEditorCard(
     var merchantName by remember(appConfig) { mutableStateOf(appConfig.upiMerchantName.ifBlank { "Fame Maker" }) }
     var paymentQrUrl by remember(appConfig) { mutableStateOf(appConfig.paymentQrUrl) }
     var minDeposit by remember(appConfig) { mutableStateOf(appConfig.minDepositInr.toString()) }
+    var coinRate by remember(appConfig) { mutableStateOf(appConfig.coinRatePerInr.coerceAtLeast(1L).toString()) }
     var instructions by remember(appConfig) { mutableStateOf(appConfig.paymentInstructions) }
     var supportLink by remember(appConfig) { mutableStateOf(appConfig.supportLink) }
 
@@ -615,10 +672,10 @@ private fun PaymentSetupEditorCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.QrCode2, contentDescription = null, tint = AdminPrimary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("UPI & QR Payment Settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("UPI, QR & Coin Rate Setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Text(
-                text = "Upload your UPI QR Code via ImgBB and set your UPI ID. Both Main Admin and Co-Admins can update this live for all users.",
+                text = "Upload your UPI QR Code via ImgBB, set UPI ID, and set Coins per ₹1. Applies live to both INR Wallet Deposits & Coin Purchases!",
                 style = MaterialTheme.typography.bodySmall,
                 color = AdminTextSecondary
             )
@@ -641,21 +698,31 @@ private fun PaymentSetupEditorCard(
                     .fillMaxWidth()
                     .testTag("admin_upi_id_input")
             )
+            OutlinedTextField(
+                value = merchantName,
+                onValueChange = { merchantName = it },
+                label = { Text("Merchant Name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = merchantName,
-                    onValueChange = { merchantName = it },
-                    label = { Text("Merchant Name") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1.3f)
-                )
                 OutlinedTextField(
                     value = minDeposit,
                     onValueChange = { minDeposit = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Min ₹") },
+                    label = { Text("Min Deposit ₹") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(0.7f)
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = coinRate,
+                    onValueChange = { coinRate = it.filter { ch -> ch.isDigit() }.take(4) },
+                    label = { Text("Coins per ₹1") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("admin_coin_rate_input")
                 )
             }
             OutlinedTextField(
@@ -681,6 +748,7 @@ private fun PaymentSetupEditorCard(
                             upiMerchantName = merchantName.trim().ifBlank { "Fame Maker" },
                             paymentQrUrl = paymentQrUrl.trim(),
                             minDepositInr = (minDeposit.toLongOrNull() ?: 10L).coerceAtLeast(1L),
+                            coinRatePerInr = (coinRate.toLongOrNull() ?: 2L).coerceIn(1L, 10_000L),
                             paymentInstructions = instructions.trim(),
                             supportLink = supportLink.trim()
                         )

@@ -338,13 +338,35 @@ private fun AuthenticatedAppShell(
                             WalletScreen(
                                 profile = profile,
                                 packages = coinPackages,
+                                appConfig = appConfig,
+                                fundRequests = myFundRequests,
                                 busy = busy,
-                                onPurchasePackage = { pkg, onSuccess ->
-                                    viewModel.purchasePackage(pkg, onSuccess)
+                                onBuyCoinsWithWallet = { sel, onLowBal, onAdded ->
+                                    viewModel.buyCoinsWithInrWallet(
+                                        packageName = sel.packageName,
+                                        coinsToCredit = sel.totalCoins,
+                                        pointsToCredit = sel.points,
+                                        costPaise = sel.pricePaise,
+                                        onInsufficientBalance = onLowBal,
+                                        onSuccess = onAdded
+                                    )
+                                },
+                                onSubmitCoinUpi = { sel, utr, proof, onSubmitted ->
+                                    viewModel.submitCoinPurchaseUpi(
+                                        packageId = sel.packageId,
+                                        packageName = sel.packageName,
+                                        coinsToCredit = sel.totalCoins,
+                                        pointsToCredit = sel.points,
+                                        amountPaise = sel.pricePaise,
+                                        utrNumber = utr,
+                                        proofImageUrl = proof,
+                                        onSuccess = onSubmitted
+                                    )
                                 },
                                 onOpenAddFunds = { navController.navigate(Routes.ADD_FUNDS) },
                                 onOpenHistory = { navController.navigate(Routes.WALLET_HISTORY) },
-                                onOpenSettings = { navController.navigate(Routes.SETTINGS) }
+                                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                                onShowMessage = { viewModel.showToast(it) }
                             )
                         }
 

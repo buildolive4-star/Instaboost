@@ -147,7 +147,11 @@ class AdminViewModel(
             _busy.value = true
             repository.approveFundRequest(request, adminNote, session.displayName)
                 .onSuccess {
-                    _toast.value = "Approved & credited ${formatInrFromPaise(request.amountPaise)}!"
+                    _toast.value = if (request.isCoinPurchase) {
+                        "Approved & credited +${request.coinsToCredit} coins!"
+                    } else {
+                        "Approved & credited ${formatInrFromPaise(request.amountPaise)}!"
+                    }
                 }
                 .onFailure { _toast.value = it.localizedMessage ?: "Approval failed" }
             _busy.value = false
@@ -158,7 +162,9 @@ class AdminViewModel(
         viewModelScope.launch {
             _busy.value = true
             repository.rejectFundRequest(request, adminNote, session.displayName)
-                .onSuccess { _toast.value = "Deposit request rejected" }
+                .onSuccess {
+                    _toast.value = if (request.isCoinPurchase) "Coin payment rejected" else "Deposit request rejected"
+                }
                 .onFailure { _toast.value = it.localizedMessage ?: "Reject failed" }
             _busy.value = false
         }

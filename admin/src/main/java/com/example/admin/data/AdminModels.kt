@@ -21,6 +21,15 @@ fun formatRatePer1k(paise: Long): String {
     return String.format(Locale.US, "₹%d.%02d/k", rupees, rem)
 }
 
+fun calculateAdminLevel(points: Long): Long {
+    val thresholds = listOf(0L, 15L, 45L, 100L, 180L, 300L, 480L, 720L, 1050L, 1500L)
+    var lvl = 1L
+    thresholds.forEachIndexed { idx, req ->
+        if (points >= req) lvl = (idx + 1).toLong()
+    }
+    return lvl.coerceIn(1L, 10L)
+}
+
 data class AdminSession(
     val uid: String,
     val displayName: String,
@@ -165,6 +174,11 @@ data class AdminFundRequest(
     val userId: String = "",
     val userName: String = "",
     val userEmail: String = "",
+    val requestType: String = "WALLET_INR",
+    val packageId: String = "",
+    val packageName: String = "",
+    val coinsToCredit: Long = 0L,
+    val pointsToCredit: Long = 0L,
     val amountPaise: Long = 0L,
     val utrNumber: String = "",
     val proofImageUrl: String = "",
@@ -172,7 +186,9 @@ data class AdminFundRequest(
     val adminNote: String = "",
     @ServerTimestamp val createdAt: Timestamp? = null,
     @ServerTimestamp val updatedAt: Timestamp? = null
-)
+) {
+    val isCoinPurchase: Boolean get() = requestType == "COIN_PACK" || coinsToCredit > 0L
+}
 
 @Keep
 @IgnoreExtraProperties
@@ -226,6 +242,7 @@ data class AdminAppConfig(
     val paymentQrUrl: String = "",
     val paymentInstructions: String = "Scan the UPI QR code or copy UPI ID, complete payment, and submit the 12-digit UTR number.",
     val minDepositInr: Long = 10L,
+    val coinRatePerInr: Long = 2L,
     val supportLink: String = "",
     @ServerTimestamp val updatedAt: Timestamp? = null
 )

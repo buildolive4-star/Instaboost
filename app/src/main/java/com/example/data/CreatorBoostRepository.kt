@@ -1242,6 +1242,7 @@ class CreatorBoostRepository(
             val payload = mutableMapOf<String, Any>(
                 "userId" to uid,
                 "userName" to profile.displayName.ifBlank { "Creator" }.take(80),
+                "requestType" to "WALLET_INR",
                 "amountPaise" to amountPaise,
                 "utrNumber" to cleanUtr,
                 "status" to "PENDING",
@@ -1275,6 +1276,153 @@ class CreatorBoostRepository(
             throw e
         } catch (e: Exception) {
             handleFirestoreError(e, OperationType.CREATE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun submitCoinPurchaseUpiRequest(
+        profile: UserProfile,
+        packageId: String,
+        packageName: String,
+        coinsToCredit: Long,
+        pointsToCredit: Long,
+        amountPaise: Long,
+        utrNumber: String,
+        proofImageUrl: String = ""
+    ): Result<String> {
+        var path = "fundRequests"
+        return try {
+            val uid = requireUserId()
+            check(uid == profile.userId) { "User mismatch" }
+            val cleanUtr = utrNumber.trim()
+            if (amountPaise < 100L) {
+                return Result.failure(IllegalArgumentException("Minimum payment is ₹1.00."))
+            }
+            if (coinsToCredit < 1L) {
+                return Result.failure(IllegalArgumentException("Invalid coin amount."))
+            }
+            if (cleanUtr.length !in 6..40) {
+                return Result.failure(IllegalArgumentException("Enter a valid 6–40 character UTR / Transaction ID."))
+            }
+            val reqRef = db.collection("fundRequests").document()
+            val notifRef = db.collection("users").document(uid).collection("notifications").document()
+            path = reqRef.path
+
+            val payload = mutableMapOf<String, Any>(
+                "userId" to uid,
+                "userName" to profile.displayName.ifBlank { "Creator" }.take(80),
+                "requestType" to "COIN_PACK",
+                "packageId" to packageId.ifBlank { "custom_coins" }.take(80),
+                "packageName" to packageName.ifBlank { "$coinsToCredit Coins Pack" }.take(100),
+                "coinsToCredit" to coinsToCredit.coerceIn(1L, 10_000_000L),
+                "pointsToCredit" to pointsToCredit.coerceIn(0L, 100_000L),
+                "amountPaise" to amountPaise,
+                "utrNumber" to cleanUtr,
+                "status" to "PENDING",
+                "createdAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            if (profile.email.isNotBlank()) {
+                payload["userEmail"] = profile.email.take(120)
+            }
+            val cleanProof = proofImageUrl.trim()
+            if (cleanProof.isNotBlank() && cleanProof.length <= 2048) {
+                payload["proofImageUrl"] = cleanProof
+            }
+
+            val batch = db.batch()
+            batch.set(reqRef, payload)
+            batch.set(
+                notifRef,
+                mapOf(
+                    "userId" to uid,
+                    "title" to "Coin Payment Submitted",
+                    "body" to "Paid ${formatInrFromPaise(amountPaise)} (UTR: $cleanUtr) for $coinsToCredit coins. Admin will verify & credit soon.",
+                    "category" to "PURCHASE",
+                    "read" to false,
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.commit().await()
+            Result.success(reqRef.id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, path)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun buyCoinsWithInrWallet(
+        profile: UserProfile,
+        packageName: String,
+        coinsToCredit: Long,
+        pointsToCredit: Long,
+        costPaise: Long
+    ): Result<Long> {
+        var path = "users/${profile.userId}"
+        return try {
+            val uid = requireUserId()
+            check(uid == profile.userId) { "User mismatch" }
+            if (costPaise < 100L) {
+                return Result.failure(IllegalArgumentException("Minimum coin purchase is ₹1.00."))
+            }
+            if (profile.walletBalancePaise < costPaise) {
+                return Result.failure(IllegalStateException("INSUFFICIENT_WALLET_BALANCE"))
+            }
+            path = "users/$uid"
+            val newWalletPaise = (profile.walletBalancePaise - costPaise).coerceAtLeast(0L)
+            val newCoins = (profile.coins + coinsToCredit).coerceAtMost(10_000_000L)
+            val newPoints = (profile.points + pointsToCredit).coerceAtMost(10_000_000L)
+            val newLevel = DefaultCatalog.calculateLevel(newPoints)
+
+            val userRef = db.collection("users").document(uid)
+            val txRef = userRef.collection("transactions").document()
+            val notifRef = userRef.collection("notifications").document()
+
+            val batch = db.batch()
+            // Matches Action 4 in firestore.rules: walletBalancePaise strictly decreases while coins/points/level update
+            batch.update(
+                userRef,
+                mapOf(
+                    "walletBalancePaise" to newWalletPaise,
+                    "coins" to newCoins,
+                    "points" to newPoints,
+                    "level" to newLevel,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.set(
+                txRef,
+                mapOf(
+                    "userId" to uid,
+                    "txType" to "PURCHASE",
+                    "title" to packageName.ifBlank { "$coinsToCredit Coins Pack" }.take(120),
+                    "description" to "Paid ${formatInrFromPaise(costPaise)} from INR Wallet • +$coinsToCredit coins & +$pointsToCredit pts".take(240),
+                    "coinDelta" to coinsToCredit.coerceIn(0L, 1_000_000L),
+                    "pointsDelta" to pointsToCredit.coerceIn(0L, 100_000L),
+                    "priceInr" to (costPaise / 100L).coerceIn(0L, 5_000_000L),
+                    "status" to "SUCCESSFUL",
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.set(
+                notifRef,
+                mapOf(
+                    "userId" to uid,
+                    "title" to "Coins Added Instantly!",
+                    "body" to "Converted ${formatInrFromPaise(costPaise)} from your INR Wallet into $coinsToCredit coins (+$pointsToCredit pts).",
+                    "category" to "PURCHASE",
+                    "read" to false,
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.commit().await()
+            Result.success(coinsToCredit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, path)
             Result.failure(e)
         }
     }

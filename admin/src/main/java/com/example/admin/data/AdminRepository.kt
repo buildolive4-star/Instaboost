@@ -370,7 +370,8 @@ class AdminRepository(
         reason: String,
         actorName: String
     ): Result<Unit> {
-        val path = "users/${user.userId}"
+        val targetUid = user.userId.ifBlank { user.id }
+        val path = "users/$targetUid"
         return try {
             requireUid()
             val safeCoins = newCoins.coerceIn(0L, 10_000_000L)
@@ -381,7 +382,7 @@ class AdminRepository(
             val paiseDelta = safePaise - user.walletBalancePaise
             val pointsDelta = safePoints - user.points
 
-            val userRef = db.collection("users").document(user.userId)
+            val userRef = db.collection("users").document(targetUid)
             val batch = db.batch()
             batch.update(
                 userRef,
@@ -562,6 +563,7 @@ class AdminRepository(
                 return Result.failure(IllegalStateException("Already approved."))
             }
             val cleanNote = adminNote.trim().ifBlank { "Verified UTR ${request.utrNumber}" }.take(300)
+            val isCoinPack = request.isCoinPurchase
 
             db.runTransaction { tx ->
                 val reqRef = db.collection("fundRequests").document(request.id)
@@ -571,8 +573,6 @@ class AdminRepository(
                     return@runTransaction
                 }
                 val userSnap = tx.get(userRef)
-                val currentPaise = userSnap.getLong("walletBalancePaise") ?: 0L
-                val updatedPaise = (currentPaise + request.amountPaise).coerceAtMost(1_000_000_000L)
 
                 tx.update(
                     reqRef,
@@ -582,49 +582,106 @@ class AdminRepository(
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
                 )
-                if (userSnap.exists()) {
-                    tx.update(
-                        userRef,
+
+                if (isCoinPack) {
+                    val coinsAdd = request.coinsToCredit.coerceIn(1L, 10_000_000L)
+                    val pointsAdd = request.pointsToCredit.coerceIn(0L, 100_000L)
+                    val currentCoins = userSnap.getLong("coins") ?: 0L
+                    val currentPoints = userSnap.getLong("points") ?: 0L
+                    val updatedCoins = (currentCoins + coinsAdd).coerceAtMost(10_000_000L)
+                    val updatedPoints = (currentPoints + pointsAdd).coerceAtMost(10_000_000L)
+                    val updatedLevel = calculateAdminLevel(updatedPoints)
+
+                    if (userSnap.exists()) {
+                        tx.update(
+                            userRef,
+                            mapOf(
+                                "coins" to updatedCoins,
+                                "points" to updatedPoints,
+                                "level" to updatedLevel,
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
+                        )
+                    }
+                    val txRef = userRef.collection("transactions").document()
+                    tx.set(
+                        txRef,
                         mapOf(
-                            "walletBalancePaise" to updatedPaise,
-                            "updatedAt" to FieldValue.serverTimestamp()
+                            "userId" to request.userId,
+                            "txType" to "PURCHASE",
+                            "title" to request.packageName.ifBlank { "$coinsAdd Coins Pack" }.take(120),
+                            "description" to "UPI Verified (${formatInrFromPaise(request.amountPaise)}) • UTR ${request.utrNumber}".take(240),
+                            "coinDelta" to coinsAdd.coerceAtMost(1_000_000L),
+                            "pointsDelta" to pointsAdd.coerceAtMost(100_000L),
+                            "priceInr" to (request.amountPaise / 100L).coerceIn(0L, 5_000_000L),
+                            "status" to "SUCCESSFUL",
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    val notifRef = userRef.collection("notifications").document()
+                    tx.set(
+                        notifRef,
+                        mapOf(
+                            "userId" to request.userId,
+                            "title" to "Coins Credited: +$coinsAdd Coins!",
+                            "body" to "Your ${formatInrFromPaise(request.amountPaise)} UPI payment (UTR ${request.utrNumber}) was approved. +$coinsAdd coins added!".take(400),
+                            "category" to "PURCHASE",
+                            "read" to false,
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                } else {
+                    val currentPaise = userSnap.getLong("walletBalancePaise") ?: 0L
+                    val updatedPaise = (currentPaise + request.amountPaise).coerceAtMost(1_000_000_000L)
+
+                    if (userSnap.exists()) {
+                        tx.update(
+                            userRef,
+                            mapOf(
+                                "walletBalancePaise" to updatedPaise,
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
+                        )
+                    }
+                    val txRef = userRef.collection("transactions").document()
+                    tx.set(
+                        txRef,
+                        mapOf(
+                            "userId" to request.userId,
+                            "txType" to "DEPOSIT",
+                            "title" to "Wallet Top-Up Approved",
+                            "description" to "Added ${formatInrFromPaise(request.amountPaise)} • UTR ${request.utrNumber}".take(240),
+                            "coinDelta" to 0L,
+                            "pointsDelta" to 0L,
+                            "priceInr" to (request.amountPaise / 100L).coerceIn(0L, 5_000_000L),
+                            "status" to "SUCCESSFUL",
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    val notifRef = userRef.collection("notifications").document()
+                    tx.set(
+                        notifRef,
+                        mapOf(
+                            "userId" to request.userId,
+                            "title" to "Funds Added: ${formatInrFromPaise(request.amountPaise)}",
+                            "body" to "Your UPI deposit (UTR ${request.utrNumber}) was approved. New balance: ${formatInrFromPaise(updatedPaise)}.".take(400),
+                            "category" to "PURCHASE",
+                            "read" to false,
+                            "createdAt" to FieldValue.serverTimestamp()
                         )
                     )
                 }
-                val txRef = userRef.collection("transactions").document()
-                tx.set(
-                    txRef,
-                    mapOf(
-                        "userId" to request.userId,
-                        "txType" to "DEPOSIT",
-                        "title" to "Wallet Top-Up Approved",
-                        "description" to "Added ${formatInrFromPaise(request.amountPaise)} • UTR ${request.utrNumber}".take(240),
-                        "coinDelta" to 0L,
-                        "pointsDelta" to 0L,
-                        "priceInr" to (request.amountPaise / 100L).coerceIn(0L, 5_000_000L),
-                        "status" to "SUCCESSFUL",
-                        "createdAt" to FieldValue.serverTimestamp()
-                    )
-                )
-                val notifRef = userRef.collection("notifications").document()
-                tx.set(
-                    notifRef,
-                    mapOf(
-                        "userId" to request.userId,
-                        "title" to "Funds Added: ${formatInrFromPaise(request.amountPaise)}",
-                        "body" to "Your UPI deposit (UTR ${request.utrNumber}) was approved. New balance: ${formatInrFromPaise(updatedPaise)}.".take(400),
-                        "category" to "PURCHASE",
-                        "read" to false,
-                        "createdAt" to FieldValue.serverTimestamp()
-                    )
-                )
             }.await()
 
             recordAudit(
                 actorName = actorName,
-                action = "APPROVE_DEPOSIT",
+                action = if (isCoinPack) "APPROVE_COINS" else "APPROVE_DEPOSIT",
                 targetPath = path,
-                summary = "Approved ${formatInrFromPaise(request.amountPaise)} for ${request.userName} (UTR ${request.utrNumber})"
+                summary = if (isCoinPack) {
+                    "Credited +${request.coinsToCredit} coins (${formatInrFromPaise(request.amountPaise)}) to ${request.userName}"
+                } else {
+                    "Approved ${formatInrFromPaise(request.amountPaise)} for ${request.userName} (UTR ${request.utrNumber})"
+                }
             )
             Result.success(Unit)
         } catch (e: CancellationException) {
@@ -644,6 +701,7 @@ class AdminRepository(
         return try {
             requireUid()
             val cleanNote = adminNote.trim().ifBlank { "Payment could not be verified" }.take(300)
+            val isCoinPack = request.isCoinPurchase
             val batch = db.batch()
             batch.update(
                 db.collection("fundRequests").document(request.id),
@@ -658,7 +716,7 @@ class AdminRepository(
                 notifRef,
                 mapOf(
                     "userId" to request.userId,
-                    "title" to "Deposit Request Rejected",
+                    "title" to if (isCoinPack) "Coin Payment Rejected" else "Deposit Request Rejected",
                     "body" to "${formatInrFromPaise(request.amountPaise)} (UTR ${request.utrNumber}) was rejected. $cleanNote".take(400),
                     "category" to "SYSTEM",
                     "read" to false,
@@ -666,7 +724,12 @@ class AdminRepository(
                 )
             )
             batch.commit().await()
-            recordAudit(actorName, "REJECT_DEPOSIT", path, "Rejected ${formatInrFromPaise(request.amountPaise)} for ${request.userName}")
+            recordAudit(
+                actorName,
+                if (isCoinPack) "REJECT_COINS" else "REJECT_DEPOSIT",
+                path,
+                "Rejected ${formatInrFromPaise(request.amountPaise)} for ${request.userName}"
+            )
             Result.success(Unit)
         } catch (e: CancellationException) {
             throw e
@@ -843,7 +906,12 @@ class AdminRepository(
                     .take(36)
                 val ref = if (slug.length >= 2) {
                     val candidate = db.collection("catalogCategories").document(slug)
-                    if (candidate.get().await().exists()) db.collection("catalogCategories").document() else candidate
+                    val alreadyExists = try {
+                        candidate.get().await().exists()
+                    } catch (_: Exception) {
+                        true
+                    }
+                    if (alreadyExists) db.collection("catalogCategories").document() else candidate
                 } else {
                     db.collection("catalogCategories").document()
                 }
@@ -1274,6 +1342,7 @@ class AdminRepository(
                     "paymentQrUrl" to config.paymentQrUrl.trim().take(2048),
                     "paymentInstructions" to config.paymentInstructions.trim().take(500),
                     "minDepositInr" to config.minDepositInr.coerceIn(1L, 100_000L),
+                    "coinRatePerInr" to config.coinRatePerInr.coerceIn(1L, 10_000L),
                     "supportLink" to config.supportLink.trim().take(300),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )

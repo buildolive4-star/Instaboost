@@ -215,12 +215,17 @@
     },
     "FundRequest": {
       "title": "FundRequest",
-      "description": "User UPI wallet deposit request with UTR and optional ImgBB proof screenshot, approved by Admin or Co-Admin.",
+      "description": "User UPI payment request for INR wallet top-up or Coin Package purchase with UTR and optional ImgBB proof screenshot, approved by Admin or Co-Admin.",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
         "userName": { "type": "string" },
         "userEmail": { "type": "string" },
+        "requestType": { "type": "string", "enum": ["WALLET_INR", "COIN_PACK"] },
+        "packageId": { "type": "string" },
+        "packageName": { "type": "string" },
+        "coinsToCredit": { "type": "integer" },
+        "pointsToCredit": { "type": "integer" },
         "amountPaise": { "type": "integer" },
         "utrNumber": { "type": "string" },
         "proofImageUrl": { "type": "string" },
@@ -267,6 +272,7 @@
         "paymentQrUrl": { "type": "string" },
         "paymentInstructions": { "type": "string" },
         "minDepositInr": { "type": "integer" },
+        "coinRatePerInr": { "type": "integer" },
         "supportLink": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

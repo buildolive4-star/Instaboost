@@ -772,7 +772,11 @@ fun AddFundsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = formatInrFromPaise(req.amountPaise),
+                                text = if (req.requestType == "COIN_PACK" || req.coinsToCredit > 0L) {
+                                    "${formatInrFromPaise(req.amountPaise)} → ${req.coinsToCredit} Coins"
+                                } else {
+                                    formatInrFromPaise(req.amountPaise)
+                                },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )

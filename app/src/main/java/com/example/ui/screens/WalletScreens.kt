@@ -57,8 +57,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
+import com.example.data.AppConfig
 import com.example.data.CoinPackageItem
 import com.example.data.DefaultCatalog
+import com.example.data.FundRequestRecord
 import com.example.data.UserProfile
 import com.example.data.WalletTransaction
 import com.example.data.formatInrFromPaise
@@ -88,16 +93,32 @@ import java.util.Locale
 fun WalletScreen(
     profile: UserProfile,
     packages: List<CoinPackageItem>,
+    appConfig: AppConfig,
+    fundRequests: List<FundRequestRecord>,
     busy: Boolean,
-    onPurchasePackage: (CoinPackageItem, (Long) -> Unit) -> Unit,
+    onBuyCoinsWithWallet: (CoinCheckoutSelection, () -> Unit, (Long) -> Unit) -> Unit,
+    onSubmitCoinUpi: (CoinCheckoutSelection, String, String, () -> Unit) -> Unit,
     onOpenAddFunds: () -> Unit,
     onOpenHistory: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onShowMessage: (String) -> Unit
 ) {
     val formatter = remember { NumberFormat.getIntegerInstance(Locale.US) }
+    val dateFormat = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.US) }
     var selectedPkg by remember { mutableStateOf<CoinPackageItem?>(null) }
-    var showCheckoutDialog by remember { mutableStateOf(false) }
+    var checkoutSelection by remember { mutableStateOf<CoinCheckoutSelection?>(null) }
     var lastAddedCoins by remember { mutableStateOf<Long?>(null) }
+    var lastSubmittedCoinUpi by remember { mutableStateOf<CoinCheckoutSelection?>(null) }
+
+    // Custom INR -> Coins calculator
+    var customInrText by remember { mutableStateOf("50") }
+    val coinRate = appConfig.coinRatePerInr.coerceAtLeast(1L)
+    val customInr = customInrText.filter { it.isDigit() }.toLongOrNull() ?: 0L
+    val customCoins = (customInr * coinRate).coerceAtMost(10_000_000L)
+    val customPoints = (customInr / 50L).coerceIn(1L, 500L)
+    val coinRequests = remember(fundRequests) {
+        fundRequests.filter { it.requestType == "COIN_PACK" || it.coinsToCredit > 0L }
+    }
 
     val (nextLevel, ptsRemaining) = DefaultCatalog.pointsToNextLevel(profile.points)
     val progress = DefaultCatalog.levelProgressFraction(profile.points)
@@ -146,7 +167,7 @@ fun WalletScreen(
                 }
             }
 
-            // INR Service Wallet Card (for Service Orders & UPI Deposits)
+            // INR Service Wallet Card (for Service Orders & Instant Coin Top-Up)
             item {
                 Surface(
                     shape = RoundedCornerShape(22.dp),
@@ -174,7 +195,7 @@ fun WalletScreen(
                                 color = Color(0xFFFACC15)
                             )
                             Text(
-                                text = "Use for instant social service orders",
+                                text = "Use for service orders or instant coins",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFFD1D5DB)
                             )
@@ -194,7 +215,7 @@ fun WalletScreen(
                 }
             }
 
-            // Warm Cream Balance Card (Exact match to Wallet screenshot!)
+            // Warm Cream Balance Card
             item {
                 Surface(
                     shape = RoundedCornerShape(22.dp),
@@ -269,6 +290,112 @@ fun WalletScreen(
                 }
             }
 
+            // Custom INR -> Coins Payment Card ("Paisa pay kre to coin mile")
+            item {
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Custom Coin Recharge",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Pay any ₹ via UPI or INR Wallet → Get Coins",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = RaspberryLight
+                            ) {
+                                Text(
+                                    text = "₹1 = $coinRate coins",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = RaspberryPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(listOf(10L, 50L, 100L, 200L, 500L)) { amt ->
+                                val active = customInr == amt
+                                FilterChip(
+                                    selected = active,
+                                    onClick = { customInrText = amt.toString() },
+                                    label = { Text("₹$amt", fontWeight = FontWeight.Bold) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = RaspberryPrimary,
+                                        selectedLabelColor = PureWhite
+                                    )
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = customInrText,
+                                onValueChange = { customInrText = it.filter { ch -> ch.isDigit() }.take(5) },
+                                label = { Text("Amount (₹)") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("custom_coin_inr_input")
+                            )
+                            Button(
+                                onClick = {
+                                    if (customInr < 1L) {
+                                        onShowMessage("Enter at least ₹1")
+                                    } else {
+                                        checkoutSelection = CoinCheckoutSelection(
+                                            packageId = "custom_${customInr}_inr",
+                                            packageName = "Custom ₹$customInr (${formatter.format(customCoins)} Coins)",
+                                            coins = customCoins,
+                                            bonusCoins = 0L,
+                                            points = customPoints,
+                                            priceInr = customInr
+                                        )
+                                    }
+                                },
+                                enabled = !busy && customInr >= 1L,
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = RaspberryPrimary),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                                modifier = Modifier.testTag("custom_coin_buy_btn")
+                            ) {
+                                Text(
+                                    text = "Get ${formatter.format(customCoins)} 🪙",
+                                    color = PureWhite,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Buy coins section header
             item {
                 Row(
@@ -283,14 +410,14 @@ fun WalletScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Buy coins",
+                        text = "Coin Packages (UPI / INR Wallet)",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
             }
 
-            // Coin Package Cards matching exact visual hierarchy of reference screenshots
+            // Coin Package Cards
             items(packages, key = { it.id }) { pkg ->
                 val isSelected = selectedPkg?.id == pkg.id
                 val isBestValue = pkg.badge.equals("Best Value", ignoreCase = true)
@@ -363,7 +490,6 @@ fun WalletScreen(
 
                             Spacer(modifier = Modifier.width(8.dp))
 
-                            // Price Pill Button
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
                                 color = if (isSelected) RaspberryPrimary else RaspberryLight
@@ -379,7 +505,6 @@ fun WalletScreen(
                         }
                     }
 
-                    // Floating Promotional Badge Pill at top-left (Exact match to screenshots!)
                     if (pkg.badge.isNotBlank()) {
                         val (badgeBg, badgeFg, showStar) = when {
                             pkg.badge.equals("Best Value", ignoreCase = true) ->
@@ -420,9 +545,70 @@ fun WalletScreen(
                     }
                 }
             }
+
+            // Recent Coin Purchase UPI Requests Status List
+            if (coinRequests.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Your Coin Payment Requests",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
+                items(coinRequests, key = { it.id }) { req ->
+                    val (bg, fg) = when (req.status) {
+                        "APPROVED" -> Color(0xFFDCFCE7) to Color(0xFF15803D)
+                        "REJECTED" -> Color(0xFFFEE2E2) to Color(0xFFB91C1C)
+                        else -> Color(0xFFFEF3C7) to Color(0xFFB45309)
+                    }
+                    val dateLabel = req.createdAt?.toDate()?.let { dateFormat.format(it) } ?: "Just now"
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${formatter.format(req.coinsToCredit)} Coins • ${formatInrFromPaise(req.amountPaise)}",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "UTR: ${req.utrNumber} • $dateLabel",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
+                                if (req.adminNote.isNotBlank()) {
+                                    Text(
+                                        text = "Note: ${req.adminNote}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = RaspberryPrimary
+                                    )
+                                }
+                            }
+                            Surface(shape = RoundedCornerShape(10.dp), color = bg) {
+                                Text(
+                                    text = req.status,
+                                    color = fg,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        // Sticky Bottom Payment Bar (Exact match to second Wallet screenshot!)
+        // Sticky Bottom Payment Bar
         AnimatedVisibility(
             visible = selectedPkg != null,
             enter = slideInVertically(initialOffsetY = { it }),
@@ -473,7 +659,16 @@ fun WalletScreen(
                         }
 
                         Button(
-                            onClick = { showCheckoutDialog = true },
+                            onClick = {
+                                checkoutSelection = CoinCheckoutSelection(
+                                    packageId = pkg.id,
+                                    packageName = pkg.name.ifBlank { "${formatter.format(pkg.coins)} Coins Pack" },
+                                    coins = pkg.coins,
+                                    bonusCoins = pkg.bonusCoins,
+                                    points = pkg.points,
+                                    priceInr = pkg.priceInr
+                                )
+                            },
                             enabled = !busy,
                             shape = RoundedCornerShape(18.dp),
                             colors = ButtonDefaults.buttonColors(
@@ -509,53 +704,38 @@ fun WalletScreen(
         }
     }
 
-    // Checkout Confirmation Dialog
-    val activePkg = selectedPkg
-    if (showCheckoutDialog && activePkg != null) {
-        AlertDialog(
-            onDismissRequest = { if (!busy) showCheckoutDialog = false },
-            title = { Text("Confirm Coin Purchase", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Package: ${formatter.format(activePkg.coins)} Coins")
-                    if (activePkg.bonusCoins > 0) {
-                        Text("Bonus: +${formatter.format(activePkg.bonusCoins)} Free Coins", color = GoldCoinDeep, fontWeight = FontWeight.SemiBold)
-                    }
-                    Text("Reward Points: +${activePkg.points} Points")
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    Text(
-                        text = "Total: ₹${formatter.format(activePkg.priceInr)}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = RaspberryPrimary
-                    )
-                    Text(
-                        text = "Demo Preview Checkout — verifies & records the transaction to your cloud Wallet History.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showCheckoutDialog = false
-                        onPurchasePackage(activePkg) { added ->
-                            selectedPkg = null
-                            lastAddedCoins = added
-                        }
+    // Real Coin Checkout Dialog (UPI QR + UTR OR Instant INR Wallet)
+    val activeSelection = checkoutSelection
+    if (activeSelection != null) {
+        CoinCheckoutDialog(
+            selection = activeSelection,
+            profile = profile,
+            appConfig = appConfig,
+            busy = busy,
+            onDismiss = { checkoutSelection = null },
+            onPayWithInrWallet = { sel ->
+                onBuyCoinsWithWallet(
+                    sel,
+                    {
+                        checkoutSelection = null
+                        onOpenAddFunds()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = RaspberryPrimary),
-                    modifier = Modifier.testTag("confirm_pay_btn")
-                ) {
-                    Text("Complete Pay ₹${formatter.format(activePkg.priceInr)}", color = PureWhite)
+                    { added ->
+                        checkoutSelection = null
+                        selectedPkg = null
+                        lastAddedCoins = added
+                    }
+                )
+            },
+            onSubmitUpiPayment = { sel, utr, proof ->
+                onSubmitCoinUpi(sel, utr, proof) {
+                    checkoutSelection = null
+                    selectedPkg = null
+                    lastSubmittedCoinUpi = sel
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showCheckoutDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            onOpenAddFunds = onOpenAddFunds,
+            onShowMessage = onShowMessage
         )
     }
 
@@ -570,9 +750,9 @@ fun WalletScreen(
                     modifier = Modifier.size(46.dp)
                 )
             },
-            title = { Text("Payment Successful!", fontWeight = FontWeight.Bold) },
+            title = { Text("Coins Added Instantly!", fontWeight = FontWeight.Bold) },
             text = {
-                Text("${formatter.format(lastAddedCoins)} coins have been added to your wallet and recorded in Wallet History.")
+                Text("${formatter.format(lastAddedCoins)} coins have been added to your wallet from your INR balance and recorded in Wallet History.")
             },
             confirmButton = {
                 Button(
@@ -580,6 +760,32 @@ fun WalletScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = RaspberryPrimary)
                 ) {
                     Text("Done", color = PureWhite)
+                }
+            }
+        )
+    }
+
+    lastSubmittedCoinUpi?.let { sel ->
+        AlertDialog(
+            onDismissRequest = { lastSubmittedCoinUpi = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = null,
+                    tint = SuccessGreen,
+                    modifier = Modifier.size(46.dp)
+                )
+            },
+            title = { Text("Payment Submitted!", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("Your ₹${formatter.format(sel.priceInr)} UPI payment for ${formatter.format(sel.totalCoins)} coins has been sent to Admin. Once UTR is verified, coins will be credited automatically!")
+            },
+            confirmButton = {
+                Button(
+                    onClick = { lastSubmittedCoinUpi = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = RaspberryPrimary)
+                ) {
+                    Text("OK", color = PureWhite)
                 }
             }
         )

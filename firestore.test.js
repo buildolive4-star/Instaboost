@@ -608,3 +608,127 @@ test("ServiceFiles, ServicePlans, ServiceOrders, FundRequests, and zero-trust IN
   );
 });
 
+test("Null-doc get() regression, coinRatePerInr config, COIN_PACK UPI approval, and instant INR wallet -> coin purchase", async () => {
+  // Also test case-insensitive Main Admin email
+  const mainAdminDb = testEnv.authenticatedContext(ADMIN_UID, {
+    email: "BuildOlive4@gmail.com",
+    email_verified: true,
+  }).firestore();
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const now = pastDate(3000);
+
+  // Regression: Admin calling get() on non-existent catalogCategories / serviceFiles / fundRequests doc must NOT fail
+  await assertSucceeds(mainAdminDb.collection("catalogCategories").doc("brand_new_cat").get());
+  await assertSucceeds(mainAdminDb.collection("serviceFiles").doc("brand_new_file").get());
+  await assertSucceeds(mainAdminDb.collection("servicePlans").doc("brand_new_plan").get());
+
+  // Admin saves appConfig with coinRatePerInr
+  await assertSucceeds(
+    mainAdminDb.collection("appConfig").doc("global").set({
+      maintenanceMode: false,
+      maintenanceMessage: "",
+      announcementTitle: "Coin Recharge Open",
+      announcementBody: "Pay via UPI or INR wallet to get coins!",
+      welcomeCoins: 15,
+      referralBonusCoins: 25,
+      spinEnabled: true,
+      dailyRewardsEnabled: true,
+      upiId: "famemaker@upi",
+      upiMerchantName: "Fame Maker",
+      paymentQrUrl: "https://i.ibb.co/example/qr.jpg",
+      paymentInstructions: "Scan QR and enter 12-digit UTR.",
+      minDepositInr: 10,
+      coinRatePerInr: 3,
+      supportLink: "https://t.me/famemakersupport",
+      updatedAt: pastDate(2000),
+    })
+  );
+
+  // Seed Alice profile with 0 paise and 15 coins
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).set({
+      userId: ALICE_UID,
+      displayName: "Alice",
+      email: "alice@example.com",
+      country: "",
+      coins: 15,
+      walletBalancePaise: 0,
+      points: 0,
+      level: 1,
+      referralCode: "CBALICE1",
+      dailyStreak: 0,
+      spinsToday: 0,
+      mascotEnabled: true,
+      darkMode: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  // Alice submits a COIN_PACK UPI payment request (PENDING)
+  await assertSucceeds(
+    aliceDb.collection("fundRequests").doc("coin_req_1").set({
+      userId: ALICE_UID,
+      userName: "Alice",
+      userEmail: "alice@example.com",
+      amountPaise: 49900,
+      utrNumber: "512345678901",
+      proofImageUrl: "https://i.ibb.co/example/coin-proof.jpg",
+      status: "PENDING",
+      requestType: "COIN_PACK",
+      packageId: "pack_1000",
+      packageName: "1,000 Coins Pack",
+      coinsToCredit: 1250,
+      pointsToCredit: 5,
+      createdAt: pastDate(1500),
+      updatedAt: pastDate(1500),
+    })
+  );
+
+  // Admin approves COIN_PACK request and credits Alice's coins, points, and level
+  await assertSucceeds(
+    mainAdminDb.collection("fundRequests").doc("coin_req_1").update({
+      status: "APPROVED",
+      adminNote: "UPI verified, 1250 coins credited",
+      updatedAt: pastDate(1200),
+    })
+  );
+  await assertSucceeds(
+    mainAdminDb.collection("users").doc(ALICE_UID).update({
+      coins: 1265,
+      points: 5,
+      level: 1,
+      updatedAt: pastDate(1200),
+    })
+  );
+
+  // Give Alice ₹100 (10000 paise) in INR wallet via Admin
+  await assertSucceeds(
+    mainAdminDb.collection("users").doc(ALICE_UID).update({
+      walletBalancePaise: 10000,
+      updatedAt: pastDate(1100),
+    })
+  );
+
+  // Alice buys coins instantly using ₹50 (5000 paise) from her INR wallet (Action 4)
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).update({
+      walletBalancePaise: 5000,
+      coins: 1415,
+      points: 7,
+      level: 1,
+      updatedAt: pastDate(900),
+    })
+  );
+
+  // Alice CANNOT increase her INR walletBalancePaise while buying coins
+  await assertFails(
+    aliceDb.collection("users").doc(ALICE_UID).update({
+      walletBalancePaise: 99999,
+      coins: 2000,
+      points: 10,
+      level: 2,
+      updatedAt: pastDate(500),
+    })
+  );
+});

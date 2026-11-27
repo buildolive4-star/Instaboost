@@ -19,7 +19,7 @@ service cloud.firestore {
     function isMainAdmin() {
       return isSignedIn() &&
         'email' in request.auth.token &&
-        request.auth.token.email == 'buildolive4@gmail.com' &&
+        request.auth.token.email.lower() == 'buildolive4@gmail.com' &&
         'email_verified' in request.auth.token &&
         request.auth.token.email_verified == true;
     }
@@ -52,21 +52,21 @@ service cloud.firestore {
     function isValidUserProfile(data) {
       return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
         data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
-        (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
-        (!('country' in data) || (data.country is string && data.country.size() >= 2 && data.country.size() <= 60)) &&
+        (!('email' in data) || data.email == null || (data.email is string && data.email.size() <= 120)) &&
+        (!('country' in data) || data.country == null || (data.country is string && data.country.size() <= 60)) &&
         data.coins is int && data.coins >= 0 && data.coins <= 10000000 &&
-        (!('walletBalancePaise' in data) || (data.walletBalancePaise is int && data.walletBalancePaise >= 0 && data.walletBalancePaise <= 1000000000)) &&
+        (!('walletBalancePaise' in data) || data.walletBalancePaise == null || (data.walletBalancePaise is int && data.walletBalancePaise >= 0 && data.walletBalancePaise <= 1000000000)) &&
         data.points is int && data.points >= 0 && data.points <= 10000000 &&
         data.level is int && data.level >= 1 && data.level <= 10 &&
         data.referralCode is string && data.referralCode.size() >= 4 && data.referralCode.size() <= 20 &&
-        (!('referredBy' in data) || (data.referredBy is string && data.referredBy.size() <= 20)) &&
+        (!('referredBy' in data) || data.referredBy == null || (data.referredBy is string && data.referredBy.size() <= 20)) &&
         data.dailyStreak is int && data.dailyStreak >= 0 && data.dailyStreak <= 7 &&
-        (!('lastDailyClaimDay' in data) || (data.lastDailyClaimDay is string && data.lastDailyClaimDay.size() <= 16)) &&
-        (!('lastSpinDay' in data) || (data.lastSpinDay is string && data.lastSpinDay.size() <= 16)) &&
+        (!('lastDailyClaimDay' in data) || data.lastDailyClaimDay == null || (data.lastDailyClaimDay is string && data.lastDailyClaimDay.size() <= 16)) &&
+        (!('lastSpinDay' in data) || data.lastSpinDay == null || (data.lastSpinDay is string && data.lastSpinDay.size() <= 16)) &&
         data.spinsToday is int && data.spinsToday >= 0 && data.spinsToday <= 10 &&
         data.mascotEnabled is bool &&
         data.darkMode is bool &&
-        (!('blocked' in data) || data.blocked is bool) &&
+        (!('blocked' in data) || data.blocked == null || data.blocked is bool) &&
         data.createdAt is timestamp && data.createdAt <= request.time &&
         data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -213,7 +213,12 @@ service cloud.firestore {
     function isValidFundRequest(data) {
       return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
         data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 80 &&
-        (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 120)) &&
+        (!('userEmail' in data) || data.userEmail == null || (data.userEmail is string && data.userEmail.size() <= 120)) &&
+        (!('requestType' in data) || data.requestType in ['WALLET_INR', 'COIN_PACK']) &&
+        (!('packageId' in data) || (data.packageId is string && data.packageId.size() <= 80)) &&
+        (!('packageName' in data) || (data.packageName is string && data.packageName.size() <= 100)) &&
+        (!('coinsToCredit' in data) || (data.coinsToCredit is int && data.coinsToCredit >= 0 && data.coinsToCredit <= 10000000)) &&
+        (!('pointsToCredit' in data) || (data.pointsToCredit is int && data.pointsToCredit >= 0 && data.pointsToCredit <= 100000)) &&
         data.amountPaise is int && data.amountPaise >= 100 && data.amountPaise <= 100000000 &&
         data.utrNumber is string && data.utrNumber.size() >= 6 && data.utrNumber.size() <= 40 &&
         (!('proofImageUrl' in data) || (data.proofImageUrl is string && data.proofImageUrl.size() <= 2048)) &&
@@ -250,6 +255,7 @@ service cloud.firestore {
         (!('paymentQrUrl' in data) || (data.paymentQrUrl is string && data.paymentQrUrl.size() <= 2048)) &&
         (!('paymentInstructions' in data) || (data.paymentInstructions is string && data.paymentInstructions.size() <= 500)) &&
         (!('minDepositInr' in data) || (data.minDepositInr is int && data.minDepositInr >= 1 && data.minDepositInr <= 100000)) &&
+        (!('coinRatePerInr' in data) || (data.coinRatePerInr is int && data.coinRatePerInr >= 1 && data.coinRatePerInr <= 10000)) &&
         (!('supportLink' in data) || (data.supportLink is string && data.supportLink.size() <= 300)) &&
         data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
@@ -326,6 +332,12 @@ service cloud.firestore {
               // Action 3: Spend INR wallet balance on a service order (strictly decreasing; cannot self-credit)
               (
                 incoming().diff(existing()).affectedKeys().hasOnly(['walletBalancePaise', 'updatedAt']) &&
+                ('walletBalancePaise' in existing()) &&
+                incoming().walletBalancePaise < existing().walletBalancePaise
+              ) ||
+              // Action 4: Buy coins instantly using INR wallet balance (walletBalancePaise strictly decreases)
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly(['walletBalancePaise', 'coins', 'points', 'level', 'updatedAt']) &&
                 ('walletBalancePaise' in existing()) &&
                 incoming().walletBalancePaise < existing().walletBalancePaise
               )
@@ -485,8 +497,8 @@ service cloud.firestore {
 
     // --- ADMIN-MANAGED CATALOG SERVICES (LEGACY CONTENT PACKS) ---
     match /catalogServices/{serviceId} {
-      allow get: if isSignedIn() && isValidId(serviceId) && (existing().published == true || isAdmin());
-      allow list: if isSignedIn() && (existing().published == true || isAdmin());
+      allow get: if isSignedIn() && isValidId(serviceId) && (isAdmin() || (resource != null && existing().published == true));
+      allow list: if isSignedIn() && (isAdmin() || existing().published == true);
 
       allow create: if isSignedIn() &&
         isValidId(serviceId) &&
@@ -518,8 +530,8 @@ service cloud.firestore {
 
     // --- ADMIN-MANAGED CATEGORIES (1:1 SQUARE GRID) ---
     match /catalogCategories/{categoryId} {
-      allow get: if isSignedIn() && isValidId(categoryId) && (existing().active == true || isAdmin());
-      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+      allow get: if isSignedIn() && isValidId(categoryId) && (isAdmin() || (resource != null && existing().active == true));
+      allow list: if isSignedIn() && (isAdmin() || existing().active == true);
 
       allow create: if isSignedIn() &&
         isValidId(categoryId) &&
@@ -546,8 +558,8 @@ service cloud.firestore {
 
     // --- ADMIN-MANAGED CUSTOM SERVICE FILES (SUB-CATEGORIES) ---
     match /serviceFiles/{fileId} {
-      allow get: if isSignedIn() && isValidId(fileId) && (existing().active == true || isAdmin());
-      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+      allow get: if isSignedIn() && isValidId(fileId) && (isAdmin() || (resource != null && existing().active == true));
+      allow list: if isSignedIn() && (isAdmin() || existing().active == true);
 
       allow create: if isSignedIn() &&
         isValidId(fileId) &&
@@ -574,8 +586,8 @@ service cloud.firestore {
 
     // --- ADMIN-MANAGED SERVICE PLANS (INSIDE EACH FILE) ---
     match /servicePlans/{planId} {
-      allow get: if isSignedIn() && isValidId(planId) && (existing().active == true || isAdmin());
-      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+      allow get: if isSignedIn() && isValidId(planId) && (isAdmin() || (resource != null && existing().active == true));
+      allow list: if isSignedIn() && (isAdmin() || existing().active == true);
 
       allow create: if isSignedIn() &&
         isValidId(planId) &&
@@ -608,8 +620,8 @@ service cloud.firestore {
 
     // --- USER SERVICE ORDERS (MANAGED BY ADMIN & CO-ADMIN) ---
     match /serviceOrders/{orderId} {
-      allow get: if isSignedIn() && isValidId(orderId) && (existing().userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && isValidId(orderId) && (isAdmin() || (resource != null && existing().userId == request.auth.uid));
+      allow list: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
 
       allow create: if isSignedIn() &&
         isValidId(orderId) &&
@@ -638,10 +650,10 @@ service cloud.firestore {
       allow delete: if isAdmin() && isValidId(orderId);
     }
 
-    // --- USER INR FUND / DEPOSIT REQUESTS (APPROVED BY ADMIN & CO-ADMIN) ---
+    // --- USER INR FUND / COIN PURCHASE REQUESTS (APPROVED BY ADMIN & CO-ADMIN) ---
     match /fundRequests/{requestId} {
-      allow get: if isSignedIn() && isValidId(requestId) && (existing().userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && isValidId(requestId) && (isAdmin() || (resource != null && existing().userId == request.auth.uid));
+      allow list: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
 
       allow create: if isSignedIn() &&
         isValidId(requestId) &&
@@ -652,7 +664,8 @@ service cloud.firestore {
           'userId', 'userName', 'amountPaise', 'utrNumber', 'status', 'createdAt', 'updatedAt'
         ]) &&
         incoming().keys().hasOnly([
-          'userId', 'userName', 'userEmail', 'amountPaise', 'utrNumber',
+          'userId', 'userName', 'userEmail', 'requestType', 'packageId', 'packageName',
+          'coinsToCredit', 'pointsToCredit', 'amountPaise', 'utrNumber',
           'proofImageUrl', 'status', 'createdAt', 'updatedAt'
         ]) &&
         isValidFundRequest(incoming());
@@ -670,8 +683,8 @@ service cloud.firestore {
 
     // --- ADMIN-MANAGED COIN PACKAGES ---
     match /coinPackages/{packageId} {
-      allow get: if isSignedIn() && isValidId(packageId) && (existing().active == true || isAdmin());
-      allow list: if isSignedIn() && (existing().active == true || isAdmin());
+      allow get: if isSignedIn() && isValidId(packageId) && (isAdmin() || (resource != null && existing().active == true));
+      allow list: if isSignedIn() && (isAdmin() || existing().active == true);
 
       allow create: if isSignedIn() &&
         isValidId(packageId) &&
@@ -711,7 +724,7 @@ service cloud.firestore {
           'maintenanceMode', 'maintenanceMessage', 'announcementTitle', 'announcementBody',
           'welcomeCoins', 'referralBonusCoins', 'spinEnabled', 'dailyRewardsEnabled',
           'upiId', 'upiMerchantName', 'paymentQrUrl', 'paymentInstructions',
-          'minDepositInr', 'supportLink', 'updatedAt'
+          'minDepositInr', 'coinRatePerInr', 'supportLink', 'updatedAt'
         ]) &&
         isValidAppConfig(incoming());
 
@@ -722,7 +735,7 @@ service cloud.firestore {
           'maintenanceMode', 'maintenanceMessage', 'announcementTitle', 'announcementBody',
           'welcomeCoins', 'referralBonusCoins', 'spinEnabled', 'dailyRewardsEnabled',
           'upiId', 'upiMerchantName', 'paymentQrUrl', 'paymentInstructions',
-          'minDepositInr', 'supportLink', 'updatedAt'
+          'minDepositInr', 'coinRatePerInr', 'supportLink', 'updatedAt'
         ]);
 
       allow delete: if false;

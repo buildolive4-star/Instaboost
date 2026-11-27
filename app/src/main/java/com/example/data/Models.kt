@@ -100,6 +100,7 @@ data class AppConfig(
     val paymentQrUrl: String = "",
     val paymentInstructions: String = "Scan the UPI QR code or copy UPI ID, complete payment, and submit the 12-digit UTR number.",
     val minDepositInr: Long = 10L,
+    val coinRatePerInr: Long = 2L,
     val supportLink: String = "",
     @ServerTimestamp val updatedAt: Timestamp? = null
 )
@@ -174,6 +175,11 @@ data class FundRequestRecord(
     val userId: String = "",
     val userName: String = "",
     val userEmail: String = "",
+    val requestType: String = "WALLET_INR",
+    val packageId: String = "",
+    val packageName: String = "",
+    val coinsToCredit: Long = 0L,
+    val pointsToCredit: Long = 0L,
     val amountPaise: Long = 0L,
     val utrNumber: String = "",
     val proofImageUrl: String = "",

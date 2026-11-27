@@ -610,4 +610,73 @@ class CreatorBoostViewModel(
             _busyAction.value = false
         }
     }
+
+    fun submitCoinPurchaseUpi(
+        packageId: String,
+        packageName: String,
+        coinsToCredit: Long,
+        pointsToCredit: Long,
+        amountPaise: Long,
+        utrNumber: String,
+        proofImageUrl: String = "",
+        onSuccess: () -> Unit = {}
+    ) {
+        val profile = currentProfileOrNull() ?: return
+        viewModelScope.launch {
+            _busyAction.value = true
+            repository.submitCoinPurchaseUpiRequest(
+                profile = profile,
+                packageId = packageId,
+                packageName = packageName,
+                coinsToCredit = coinsToCredit,
+                pointsToCredit = pointsToCredit,
+                amountPaise = amountPaise,
+                utrNumber = utrNumber,
+                proofImageUrl = proofImageUrl
+            ).onSuccess {
+                _mascotMessage.value = "Payment submitted! $coinsToCredit coins coming after UTR check."
+                _toastMessage.value = "Coin payment submitted for verification!"
+                onSuccess()
+            }.onFailure { err ->
+                _toastMessage.value = err.localizedMessage ?: "Could not submit coin payment."
+            }
+            _busyAction.value = false
+        }
+    }
+
+    fun buyCoinsWithInrWallet(
+        packageName: String,
+        coinsToCredit: Long,
+        pointsToCredit: Long,
+        costPaise: Long,
+        onInsufficientBalance: () -> Unit = {},
+        onSuccess: (Long) -> Unit = {}
+    ) {
+        val profile = currentProfileOrNull() ?: return
+        if (profile.walletBalancePaise < costPaise) {
+            onInsufficientBalance()
+            return
+        }
+        viewModelScope.launch {
+            _busyAction.value = true
+            repository.buyCoinsWithInrWallet(
+                profile = profile,
+                packageName = packageName,
+                coinsToCredit = coinsToCredit,
+                pointsToCredit = pointsToCredit,
+                costPaise = costPaise
+            ).onSuccess { added ->
+                _mascotMessage.value = "Instant top-up! +$added coins added!"
+                _toastMessage.value = "+$added coins added instantly from INR Wallet!"
+                onSuccess(added)
+            }.onFailure { err ->
+                if (err.message == "INSUFFICIENT_WALLET_BALANCE") {
+                    onInsufficientBalance()
+                } else {
+                    _toastMessage.value = err.localizedMessage ?: "Could not convert wallet balance."
+                }
+            }
+            _busyAction.value = false
+        }
+    }
 }
